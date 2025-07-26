@@ -12,6 +12,7 @@ const projectRoutes = require('./routes/projectRoutes');
 const userTeamRoutes = require('./routes/userTeamRoutes');
 const financeRoutes = require('./routes/financeRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const organizationRoutes = require('./routes/organizationRoutes'); // **ייבוא חדש**
 
 // ייבוא שירותי התראות ותזמון
 const notificationService = require('./services/notificationService');
@@ -61,6 +62,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api', userTeamRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/conversations', chatRoutes);
+app.use('/api/organizations', organizationRoutes); // **שימוש בנתיב החדש**
 
 // --- Socket.IO Real-time Communication ---
 io.on('connection', (socket) => {
