@@ -1,0 +1,249 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Data Models
+// (As per your provided API Specification - V2)
+
+model User {
+  id        String    @id @default(uuid())
+  fullName  String
+  phone     String    @unique
+  email     String?
+  profilePictureUrl String?
+  jobTitle  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relationships (Opposite relation fields)
+  memberships         Membership[]
+  sentMessages        Message[]
+  comments            Comment[]
+  projectTeamLeads    ProjectTeamLead[]
+  taskAssignees       TaskAssignee[]
+  teamMemberships     TeamMember[]
+  teamLeadAssignments TeamLead[]
+  notifications       Notification[]
+  conversationParticipants ConversationParticipant[]
+}
+
+model Organization {
+  id        String      @id @default(uuid())
+  name      String      
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relationships (Opposite relation fields)
+  memberships    Membership[]
+  projects       Project[]
+  teams          Team[]
+  financeEntries FinanceEntry[]
+  conversations  Conversation[]
+}
+
+model Membership {
+  id             String       @id @default(uuid())
+  userId         String
+  organizationId String
+  role           String // 'SUPER_ADMIN', 'ADMIN', 'TEAM_LEADER', 'EMPLOYEE'
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  jobTitle       String?
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, organizationId])
+}
+
+model Project {
+  id             String          @id @default(uuid())
+  organizationId String
+  title          String
+  description    String?
+  startDate      DateTime?       @db.Date
+  endDate        DateTime?       @db.Date
+  budget         Float?
+  status         String          @default("מתוכנן")
+  isArchived     Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  tasks          Task[]
+  projectTeamLeads ProjectTeamLead[]
+  financeEntries FinanceEntry[] // הוסף את השדה הזה
+
+}
+
+model Task {
+  id           String     @id @default(uuid())
+  projectId    String
+  title        String
+  description  String?
+  startDate    DateTime?  @db.Date
+  endDate      DateTime?  @db.Date
+  expense      Float?
+  status       String     @default("מתוכנן")
+  color        String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  project      Project    @relation(fields: [projectId], references: [id])
+  assignees    TaskAssignee[]
+  comments     Comment[]
+  financeEntries FinanceEntry[] 
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task   Task @relation(fields: [taskId], references: [id])
+  author User @relation(fields: [authorId], references: [id])
+}
+
+model Team {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  teamMembers    TeamMember[]
+  teamLeads      TeamLead[]
+}
+
+model ProjectTeamLead {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([projectId, userId])
+}
+
+model TaskAssignee {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([taskId, userId])
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId])
+}
+
+model TeamLead {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId])
+}
+
+model FinanceEntry {
+  id             String   @id @default(uuid())
+  organizationId String
+  type           String   // 'INCOME' | 'EXPENSE'
+  amount         Float
+  description    String
+  date           DateTime @db.Date
+  projectId      String?
+  taskId         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  project      Project?     @relation(fields: [projectId], references: [id])
+  task         Task?        @relation(fields: [taskId], references: [id])
+
+
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  text           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User         @relation(fields: [senderId], references: [id])
+}
+
+model Conversation {
+  id             String   @id @default(uuid())
+  organizationId String
+  type           String   // 'private' | 'group'
+  name           String?
+  avatarUrl      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  messages       Message[]
+  participants   ConversationParticipant[]
+}
+
+model ConversationParticipant {
+  id             String   @id @default(uuid())
+  conversationId String
+  userId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // 'comment' | 'assignment' | 'status_change' | 'deadline'
+  text      String
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
