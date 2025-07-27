@@ -45,7 +45,7 @@ model Organization {
   conversations  Conversation[]
 }
 
-model Membership {
+model Membership { // <--- וודא שהשורה הזו קיימת בדיוק כך!
   id             String     @id @default(uuid())
   userId         String
   organizationId String
@@ -55,7 +55,7 @@ model Membership {
   jobTitle       String?
 
   user           User       @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade) // **ודא ש-onDelete: Cascade נמצא כאן**
 
   @@unique([userId, organizationId])
 }
@@ -73,8 +73,7 @@ model Project {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  // **הסרת onDelete: Cascade מכאן** - המיקום הנכון הוא על המפתח הזר במודל `Task`
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   tasks          Task[]
 
   // מפנה לטבלת ה-Join המפורשת
@@ -123,7 +122,7 @@ model Team {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   teamMembers    TeamMember[]
   teamLeads      TeamLead[]
 }
@@ -194,9 +193,7 @@ model FinanceEntry {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  organization   Organization   @relation(fields: [organizationId], references: [id])
-  // לא מוסיפים onDelete: Cascade כאן כי רשומות פיננסיות בדרך כלל לא נמחקות אוטומטית.
-  // הן יכולות להישאר גם אם הפרויקט/משימה נמחקים, עם projectId/taskId כ-null.
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project        Project?       @relation(fields: [projectId], references: [id])
   task           Task?          @relation(fields: [taskId], references: [id])
 }
@@ -223,7 +220,7 @@ model Conversation {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  organization   Organization   @relation(fields: [organizationId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   messages       Message[]
   participants   ConversationParticipant[]
 }

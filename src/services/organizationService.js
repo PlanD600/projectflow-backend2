@@ -42,6 +42,50 @@ const createOrganization = async (organizationName, userId) => {
     return newOrganizationAndMembership;
 };
 
+
+/**
+ * Updates an existing organization.
+ * @param {string} organizationId - The ID of the organization to update.
+ * @param {object} updates - Fields to update (e.g., { name: 'New Name' }).
+ * @returns {Promise<object>} The updated organization object.
+ */
+const updateOrganization = async (organizationId, updates) => {
+    if (!organizationId) {
+        throw new Error('Organization ID is required for update.');
+    }
+    if (!updates || Object.keys(updates).length === 0) {
+        throw new Error('No update data provided.');
+    }
+
+    const updatedOrg = await prisma.organization.update({
+        where: { id: organizationId },
+        data: updates,
+    });
+    return updatedOrg;
+};
+
+/**
+ * Deletes an organization.
+ * This will cascade delete related data if onDelete: Cascade is properly set in schema.prisma.
+ * @param {string} organizationId - The ID of the organization to delete.
+ * @returns {Promise<object>} Confirmation of deletion.
+ */
+const deleteOrganization = async (organizationId) => {
+    if (!organizationId) {
+        throw new Error('Organization ID is required for deletion.');
+    }
+
+    // Prisma's onDelete: Cascade should handle related records.
+    // Make sure your schema.prisma has onDelete: Cascade on relationships
+    // from other models pointing to Organization (e.g., Project, Team, Membership, Conversation).
+    const deletedOrg = await prisma.organization.delete({
+        where: { id: organizationId },
+    });
+    return { message: `Organization ${deletedOrg.name} deleted successfully.` };
+};
+
 module.exports = {
     createOrganization,
+    updateOrganization,
+    deleteOrganization,
 };
