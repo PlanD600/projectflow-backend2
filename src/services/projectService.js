@@ -21,7 +21,6 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
 
     let whereClause = {
         organizationId: organizationId,
-        isArchived: false, // Don't show archived projects
     };
 
     // If the user is an EMPLOYEE, they should only see projects where they are a team lead
