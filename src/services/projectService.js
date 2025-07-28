@@ -2,14 +2,18 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+
 /**
  * Retrieves a list of all projects for a given organization, with pagination and sorting.
  * @param {string} organizationId - The ID of the current organization.
+ * @param {string} userId - The ID of the authenticated user.
+ * @param {string} userRole - The role of the authenticated user.
  * @param {object} options - Pagination and sorting options.
  * @param {number} options.page - Current page number.
  * @param {number} options.limit - Number of items per page.
  * @param {string} options.sortBy - Field to sort by.
  * @param {string} options.sortOrder - Sort order ('asc' or 'desc').
+ * @param {'all' | boolean} [options.isArchivedFilter] - Optional: true for archived, false for active, 'all' for both.
  * @returns {Promise<object>} Paginated list of projects.
  */
 const getAllProjects = async (organizationId, userId, userRole, { page = 1, limit = 25, sortBy = 'createdAt', sortOrder = 'desc' }) => {

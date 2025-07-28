@@ -56,6 +56,8 @@ const getProjects = async (req, res) => {
    });
 
  } catch (error) {
+   console.error('Error in projectController.getProjects:', error); // **לוג חדש**
+
    sendErrorResponse(res, 500, 'Failed to retrieve projects.', { details: error.message });
  }
 };
