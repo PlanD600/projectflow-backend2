@@ -24,8 +24,9 @@ const createTask = async (req, res) => {
     const organizationId = req.organizationId;
     const { title, description, assigneesIds, startDate, endDate, expense, color } = req.body;
 
-    if (!title || !color) {
-        return sendErrorResponse(res, 400, 'Title and color are required for task creation.');
+    // Enforce startDate and endDate here as well, along with title and color
+    if (!title || !color || !startDate || !endDate) {
+        return sendErrorResponse(res, 400, 'Title, color, start date, and end date are required for task creation.');
     }
 
     const newTask = await taskService.createTask(projectId, organizationId, {
@@ -36,7 +37,7 @@ const createTask = async (req, res) => {
     if (error.message.includes('Project not found')) {
       return sendErrorResponse(res, 404, error.message);
     }
-    if (error.message.includes('invalid or not members')) {
+    if (error.message.includes('invalid or not members') || error.message.includes('Start date and End date are required')) { // Added new error message
         return sendErrorResponse(res, 400, error.message);
     }
     sendErrorResponse(res, 500, 'Failed to create task.', { details: error.message });
@@ -52,8 +53,8 @@ const updateTask = async (req, res) => {
 
     const updateData = req.body;
 
-    // Filter allowed updates based on the spec
-    const allowedFields = ['title', 'description', 'assigneesIds', 'status', 'startDate', 'endDate', 'expense', 'color'];
+    // Filter allowed updates based on the spec, including 'displayOrder'
+    const allowedFields = ['title', 'description', 'assigneesIds', 'status', 'startDate', 'endDate', 'expense', 'color', 'displayOrder'];
     const filteredUpdateData = Object.keys(updateData)
       .filter(key => allowedFields.includes(key))
       .reduce((obj, key) => {
@@ -114,6 +115,31 @@ const addCommentToTask = async (req, res) => {
   }
 };
 
+/**
+ * Handles reordering of tasks within a project.
+ * @param {object} req - Express request object.
+ * @param {object} res - Express response object.
+ */
+const reorderProjectTasks = async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        const organizationId = req.organizationId;
+        const { taskIdsInOrder } = req.body; // Expects an array of task IDs in the new desired order
+
+        if (!Array.isArray(taskIdsInOrder) || taskIdsInOrder.length === 0) {
+            return sendErrorResponse(res, 400, 'taskIdsInOrder array is required and must not be empty.');
+        }
+
+        await taskService.reorderTasks(projectId, organizationId, taskIdsInOrder);
+        res.status(200).json({ message: 'Tasks reordered successfully.' });
+    } catch (error) {
+        if (error.message.includes('Project not found') || error.message.includes('task IDs are invalid')) {
+            return sendErrorResponse(res, 404, error.message);
+        }
+        sendErrorResponse(res, 500, 'Failed to reorder tasks.', { details: error.message });
+    }
+};
+
 
 module.exports = {
   getProjectTasks,
@@ -121,4 +147,5 @@ module.exports = {
   updateTask,
   deleteTask,
   addCommentToTask,
+  reorderProjectTasks, // ייצוא הפונקציה החדשה
 };

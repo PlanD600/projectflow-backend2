@@ -10,11 +10,11 @@ const notificationService = require('./notificationService'); // ייבוא שי
  * @param {object} options - Pagination and sorting options.
  * @param {number} [options.page=1] - Current page number.
  * @param {number} [options.limit=25] - Number of items per page.
- * @param {string} [options.sortBy='createdAt'] - Field to sort by.
- * @param {string} [options.sortOrder='desc'] - Sort order ('asc' or 'desc').
+ * @param {string} [options.sortBy='displayOrder'] - Field to sort by.
+ * @param {string} [options.sortOrder='asc'] - Sort order ('asc' or 'desc').
  * @returns {Promise<object>} Paginated list of tasks.
  */
-const getTasksForProject = async (projectId, organizationId, { page = 1, limit = 25, sortBy = 'createdAt', sortOrder = 'desc' }) => {
+const getTasksForProject = async (projectId, organizationId, { page = 1, limit = 25, sortBy = 'displayOrder', sortOrder = 'asc' }) => { // Updated defaults
   const offset = (page - 1) * limit;
 
   // Verify project exists within the organization
@@ -31,7 +31,7 @@ const getTasksForProject = async (projectId, organizationId, { page = 1, limit =
     skip: offset,
     take: limit,
     orderBy: {
-      [sortBy]: sortOrder,
+      [sortBy]: sortOrder, // Use sortBy and sortOrder for displayOrder
     },
     include: {
       assignees: {
@@ -56,6 +56,9 @@ const getTasksForProject = async (projectId, organizationId, { page = 1, limit =
 
   const formattedTasks = tasks.map(task => ({
     ...task,
+    // Ensure dates are in YYYY-MM-DD format for client, as per requirement
+    startDate: task.startDate ? task.startDate.toISOString().split('T')[0] : null,
+    endDate: task.endDate ? task.endDate.toISOString().split('T')[0] : null,
     assignees: task.assignees.map(a => a.user),
     subtasks: [], // Subtasks are not part of this iteration for simplicity, as per model
     assigneesIds: task.assignees.map(a => a.user.id), // Add assigneesIds for frontend convenience
@@ -85,13 +88,18 @@ const getTasksForProject = async (projectId, organizationId, { page = 1, limit =
  * @param {string} taskData.title
  * @param {string} [taskData.description]
  * @param {string[]} [taskData.assigneesIds=[]] - Array of user IDs for assignees.
- * @param {string} [taskData.startDate]
- * @param {string} [taskData.endDate]
+ * @param {string} taskData.startDate // NOW REQUIRED
+ * @param {string} taskData.endDate   // NOW REQUIRED
  * @param {number} [taskData.expense]
  * @param {string} taskData.color
  * @returns {Promise<object>} The newly created task.
  */
 const createTask = async (projectId, organizationId, { title, description, assigneesIds = [], startDate, endDate, expense, color }) => {
+  // Validate required fields (startDate, endDate now mandatory)
+  if (!startDate || !endDate) {
+      throw new Error('Start date and End date are required for task creation.');
+  }
+
   // Verify project exists within the organization
   const project = await prisma.project.findUnique({
     where: { id: projectId, organizationId },
@@ -120,16 +128,26 @@ const createTask = async (projectId, organizationId, { title, description, assig
     }
   }
 
+  // Calculate new displayOrder: N+1 where N is the highest displayOrder in this project
+  const highestDisplayOrderTask = await prisma.task.findFirst({
+    where: { projectId: projectId },
+    orderBy: { displayOrder: 'desc' },
+    select: { displayOrder: true }
+  });
+  const newDisplayOrder = highestDisplayOrderTask ? highestDisplayOrderTask.displayOrder + 1 : 0;
+
+
   const newTask = await prisma.task.create({
     data: {
       projectId,
       title,
       description,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      startDate: new Date(startDate), // Ensure it's a Date object
+      endDate: new Date(endDate),     // Ensure it's a Date object
       expense,
       color,
       status: 'מתוכנן', // Default status for new task
+      displayOrder: newDisplayOrder, // Assign the calculated displayOrder
       assignees: {
         create: assigneesIds.map(userId => ({ userId }))
       }
@@ -150,10 +168,12 @@ const createTask = async (projectId, organizationId, { title, description, assig
 
   const formattedTask = {
     ...newTask,
+    startDate: newTask.startDate.toISOString().split('T')[0], // Format dates for response
+    endDate: newTask.endDate.toISOString().split('T')[0],   // Format dates for response
     assignees: newTask.assignees.map(a => a.user),
-    assigneesIds: newTask.assignees.map(a => a.user.id),
+    assigneesIds: newTask.assignees.map(a => a.user.id), // Add assigneesIds for frontend convenience
     subtasks: [],
-    assignees: undefined,
+    assignees: undefined, // Remove intermediate table for cleaner response
   };
 
   return formattedTask;
@@ -202,7 +222,8 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
   const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(currentUserRole);
 
   const allowedUpdatesForAssignee = ['status'];
-  const allowedUpdatesForManager = ['title', 'description', 'assigneesIds', 'status', 'startDate', 'endDate', 'expense', 'color'];
+  // Added 'displayOrder' to allowedUpdatesForManager and Admin
+  const allowedUpdatesForManager = ['title', 'description', 'assigneesIds', 'status', 'startDate', 'endDate', 'expense', 'color', 'displayOrder'];
 
   let finalUpdateData = {};
   if (isAdmin || isProjectTeamLeader) { // Admins or Team Leaders of THIS project can update all
@@ -212,7 +233,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
 
     // Handle assigneesIds update: disconnect old, connect new
     if (assigneesIds !== undefined) {
-      // Validate new assignees exist and are part of the organization
+      // Validate new assignees exist and belong to the organization
       const existingUsers = await prisma.user.findMany({
         where: {
           id: { in: assigneesIds },
@@ -318,6 +339,8 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
 
   const formattedTask = {
     ...updatedTask,
+    startDate: updatedTask.startDate.toISOString().split('T')[0], // Format dates for response
+    endDate: updatedTask.endDate.toISOString().split('T')[0],   // Format dates for response
     assignees: updatedTask.assignees.map(a => a.user),
     assigneesIds: updatedTask.assignees.map(a => a.user.id),
     subtasks: [], // As per original model, subtasks are not part of this iteration
@@ -430,6 +453,47 @@ const addCommentToTask = async (taskId, projectId, organizationId, authorId, con
   return newComment;
 };
 
+/**
+ * Reorders tasks within a project by updating their displayOrder.
+ * @param {string} projectId - The ID of the project.
+ * @param {string} organizationId - The ID of the current organization.
+ * @param {string[]} taskIdsInOrder - An ordered array of task IDs.
+ * @returns {Promise<void>}
+ */
+const reorderTasks = async (projectId, organizationId, taskIdsInOrder) => {
+    // Verify project exists within the organization
+    const project = await prisma.project.findUnique({
+        where: { id: projectId, organizationId },
+    });
+
+    if (!project) {
+        throw new Error('Project not found or does not belong to your organization.');
+    }
+
+    // Ensure all task IDs belong to this project and organization
+    const existingTasks = await prisma.task.findMany({
+        where: {
+            id: { in: taskIdsInOrder },
+            projectId: projectId
+        },
+        select: { id: true }
+    });
+
+    if (existingTasks.length !== taskIdsInOrder.length) {
+        throw new Error('One or more task IDs are invalid or do not belong to this project.');
+    }
+
+    // Use a transaction for atomicity to update displayOrder for all tasks
+    await prisma.$transaction(
+        taskIdsInOrder.map((taskId, index) =>
+            prisma.task.update({
+                where: { id: taskId },
+                data: { displayOrder: index },
+            })
+        )
+    );
+};
+
 
 module.exports = {
   getTasksForProject,
@@ -437,4 +501,5 @@ module.exports = {
   updateTask,
   deleteTask,
   addCommentToTask,
+  reorderTasks, // ייצוא הפונקציה החדשה
 };

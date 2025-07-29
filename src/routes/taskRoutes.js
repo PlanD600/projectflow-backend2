@@ -34,4 +34,11 @@ router.post(
   taskController.addCommentToTask
 );
 
+// NEW ROUTE for reordering tasks
+router.patch(
+    '/reorder', // No taskId in params here, as it's a bulk update for the project
+    authorizeRoles(['ADMIN', 'SUPER_ADMIN', 'TEAM_LEADER']), // Only managers/admins can reorder
+    taskController.reorderProjectTasks
+);
+
 module.exports = router;

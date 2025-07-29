@@ -42,9 +42,27 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
         },
         include: {
             tasks: { // Include tasks to calculate status
-                select: { status: true }
-            },
-            projectTeamLeads: {
+select: {
+                    id: true,
+                    title: true,
+                    startDate: true,
+                    endDate: true,
+                    status: true,
+                    color: true,
+                    displayOrder: true,
+                    // חשוב לכלול גם את המשתמשים המשויכים כדי שנוכל לבדוק הרשאות
+                    assignees: {
+                        select: {
+                            user: {
+                                select: { id: true, fullName: true }
+                            }
+                        }
+                    }
+                },
+                orderBy: {
+                    displayOrder: 'asc' // מיון המשימות לפי הסדר שנקבע
+                }
+            },            projectTeamLeads: {
                 include: {
                     user: {
                         select: { id: true, fullName: true, email: true, profilePictureUrl: true, jobTitle: true }
@@ -56,14 +74,18 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
     // --- End of missing part ---
 
     // Map to the desired Project interface, populating teamLeads as User[]
-    const formattedProjects = projects.map(project => {
-        const { status, completionPercentage } = calculateProjectStatus(project.tasks); // Calculate status here
+  const formattedProjects = projects.map(project => {
+        // המרת המבנה של assignees למבנה שטוח יותר שהלקוח מצפה לו
+        const formattedTasks = project.tasks.map(task => ({
+            ...task,
+            assignees: task.assignees.map(a => a.user)
+        }));
+
         return {
             ...project,
-            status, // Use the calculated status
-            completionPercentage, // Add the completion percentage
+            tasks: formattedTasks, // שימוש במשימות המעובדות
             teamLeads: project.projectTeamLeads.map(ptl => ptl.user),
-            projectTeamLeads: undefined, // Remove the intermediate field
+            projectTeamLeads: undefined,
         };
     });
 
