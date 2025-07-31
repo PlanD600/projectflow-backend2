@@ -267,7 +267,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
           await notificationService.createAndSendNotification(
               assigneeId,
               'assignment',
-              `You have been assigned to task "${task.title}" in project "${project.title}".`,
+              `You have been assigned to task "${task?.title}" in project "${project.title}".`,
               `/projects/${projectId}/tasks/${taskId}` // Example link for frontend navigation
           );
       }
@@ -275,7 +275,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
           await notificationService.createAndSendNotification(
               assigneeId,
               'assignment',
-              `You have been unassigned from task "${task.title}" in project "${project.title}".`,
+              `You have been unassigned from task "${task?.title}" in project "${project.title}".`,
               `/projects/${projectId}/tasks/${taskId}`
           );
       }
@@ -331,7 +331,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
           await notificationService.createAndSendNotification(
               userIdToNotify,
               'status_change',
-              `Task "${updatedTask.title}" status changed from "${oldStatus}" to "${updatedTask.status}" in project "${project.title}".`,
+              `Task "${updatedTask?.title}" status changed from "${oldStatus}" to "${updatedTask.status}" in project "${project.title}".`,
               `/projects/${projectId}/tasks/${taskId}`
           );
       }
@@ -445,7 +445,7 @@ const addCommentToTask = async (taskId, projectId, organizationId, authorId, con
       await notificationService.createAndSendNotification(
           userIdToNotify,
           'comment',
-          `New comment on task "${task.title}" in project "${project.title}" by ${newComment.author.fullName}.`,
+          `New comment on task "${task?.title}" in project "${project.title}" by ${newComment.author.fullName}.`,
           `/projects/${projectId}/tasks/${taskId}` // Link for easy navigation in frontend
       );
   }

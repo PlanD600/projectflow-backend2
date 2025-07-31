@@ -53,7 +53,7 @@ const checkAndSendDeadlineNotifications = async () => {
       // or a field on Task indicating last notification date.
       // For simplicity now, we'll just send it.
 
-      const notificationText = `Task "${task.title}" in project "${task.project.title}" is due on ${task.endDate.toLocaleDateString('he-IL')}.`;
+      const notificationText = `Task "${task?.title}" in project "${task.project.title}" is due on ${task.endDate.toLocaleDateString('he-IL')}.`;
       const notificationLink = `/projects/${task.projectId}/tasks/${task.id}`;
 
       // Notify all assignees of the task
