@@ -36,6 +36,9 @@ router.delete(
   projectController.deleteProject
 );
 
+router.post('/:projectId/finances/reset', authorizeRoles(['ADMIN', 'SUPER_ADMIN']), projectController.resetProjectFinances);
+
+
 // Nested tasks routes
 router.use('/:projectId/tasks', taskRoutes); // כל הנתיבים תחת '/api/projects/:projectId/tasks' יופנו ל-taskRoutes
 

@@ -1,6 +1,8 @@
 // src/controllers/projectController.js
 const projectService = require('../services/projectService');
-const { sendErrorResponse } = require('../utils/errorUtils'); // פונקציית עזר לשליחת שגיאות
+const { sendErrorResponse } = require('../utils/errorUtils');
+const financeService = require('../services/financeService'); // ייבוא שירות הכספים
+
 
 // --- הוספנו את הפונקציה הזו כאן לנוחות ---
 const calculateProjectStatus = (tasks) => {
@@ -31,142 +33,159 @@ const calculateProjectStatus = (tasks) => {
 
 
 const getProjects = async (req, res) => {
- try {
-   const organizationId = req.organizationId;
-   const userId = req.user.userId;
-   const userRole = req.user.role;
-   const { page, limit, sortBy, sortOrder } = req.query;
+    try {
+        const organizationId = req.organizationId;
+        const userId = req.user.userId;
+        const userRole = req.user.role;
+        const { page, limit, sortBy, sortOrder } = req.query;
 
-   const projectsResult = await projectService.getAllProjects(organizationId, userId, userRole, { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder });
-   
-   // (זהו החלק שחזר) - מחשבים סטטוס דינמי עבור כל פרויקט
-   const projectsWithDynamicStatus = projectsResult.data.map(project => {
-     const { status, completionPercentage } = calculateProjectStatus(project.tasks);
-     return {
-       ...project,
-       status,
-       completionPercentage,
-     };
-   });
-   
-   // שולחים את התוצאה המעובדת
-   res.status(200).json({
-       ...projectsResult,
-       data: projectsWithDynamicStatus
-   });
+        const projectsResult = await projectService.getAllProjects(organizationId, userId, userRole, { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder });
+        
+        const projectsWithDynamicStatus = projectsResult.data.map(project => {
+            const { status, completionPercentage } = calculateProjectStatus(project.tasks);
+            return {
+                ...project,
+                status,
+                completionPercentage,
+            };
+        });
+        
+        res.status(200).json({
+            ...projectsResult,
+            data: projectsWithDynamicStatus
+        });
 
- } catch (error) {
-   console.error('Error in projectController.getProjects:', error); // **לוג חדש**
-
-   sendErrorResponse(res, 500, 'Failed to retrieve projects.', { details: error.message });
- }
+    } catch (error) {
+        console.error('Error in projectController.getProjects:', error);
+        sendErrorResponse(res, 500, 'Failed to retrieve projects.', { details: error.message });
+    }
 };
 
 const getProjectById = async (req, res) => {
-    // הפונקציה הזו לא קיימת ב-projectService.js שלך כרגע.
-    // אם תצטרך אותה בעתיד, תוכל להוסיף אותה שם.
-    // בינתיים, נשאיר אותה ריקה כדי שלא תגרום לשגיאות.
+    // ניתן להוסיף כאן לוגיקה לאחזור פרויקט ספציפי
     sendErrorResponse(res, 501, 'Not Implemented'); 
 };
 
 
 const createProject = async (req, res) => {
- try {
-   const organizationId = req.organizationId; 
-   const { title, description, teamLeads, startDate, endDate, budget } = req.body;
+    try {
+        const organizationId = req.organizationId; 
+        // 💡 תיקון: פירוק השדות החדשים מהבקשה
+        const { title, description, teamLeads, startDate, endDate, monthlyBudgets } = req.body;
 
-   if (!title || !Array.isArray(teamLeads)) {
-       return sendErrorResponse(res, 400, 'Title and teamLeads array are required.');
-   }
+        if (!title || !Array.isArray(teamLeads)) {
+            return sendErrorResponse(res, 400, 'Title and teamLeads array are required.');
+        }
 
-   const newProject = await projectService.createProject(organizationId, {
-     title,
-     description,
-     teamLeads,
-     startDate,
-     endDate,
-     budget
-   });
-   res.status(201).json(newProject);
- } catch (error) {
-   if (error.message.includes('invalid or not members')) {
-       return sendErrorResponse(res, 400, error.message);
-   }
-   sendErrorResponse(res, 500, 'Failed to create project.', { details: error.message });
- }
+        const newProject = await projectService.createProject(organizationId, {
+            title,
+            description,
+            teamLeads,
+            startDate,
+            endDate,
+            monthlyBudgets
+        });
+        res.status(201).json(newProject);
+    } catch (error) {
+        if (error.message.includes('invalid or not members')) {
+            return sendErrorResponse(res, 400, error.message);
+        }
+        sendErrorResponse(res, 500, 'Failed to create project.', { details: error.message });
+    }
 };
 
 const updateProject = async (req, res) => {
- try {
-   const { projectId } = req.params;
-   const organizationId = req.organizationId;
-   const updateData = req.body;
+    try {
+        const { projectId } = req.params;
+        const organizationId = req.organizationId;
+        const updateData = req.body;
 
-   const allowedUpdates = ['title', 'description', 'teamLeads', 'startDate', 'endDate', 'budget', 'status', 'isArchived'];
-   const filteredUpdateData = Object.keys(updateData)
-     .filter(key => allowedUpdates.includes(key))
-     .reduce((obj, key) => {
-       obj[key] = updateData[key];
-       return obj;
-     }, {});
+        // 💡 תיקון: עדכון המערך כך שיכלול את השדות החדשים
+        const allowedUpdates = ['title', 'description', 'teamLeads', 'startDate', 'endDate', 'status', 'isArchived', 'monthlyBudgets'];
+        const filteredUpdateData = Object.keys(updateData)
+            .filter(key => allowedUpdates.includes(key))
+            .reduce((obj, key) => {
+                obj[key] = updateData[key];
+                return obj;
+            }, {});
 
-   if (Object.keys(filteredUpdateData).length === 0) {
-     return sendErrorResponse(res, 400, 'No valid fields provided for update.');
-   }
+        if (Object.keys(filteredUpdateData).length === 0) {
+            return sendErrorResponse(res, 400, 'No valid fields provided for update.');
+        }
 
-   const updatedProject = await projectService.updateProject(projectId, organizationId, filteredUpdateData);
-   res.status(200).json(updatedProject);
- } catch (error) {
-   if (error.message.includes('Project not found')) {
-     return sendErrorResponse(res, 404, error.message);
-   }
-   if (error.message.includes('invalid or not members')) {
-       return sendErrorResponse(res, 400, error.message);
-   }
-   sendErrorResponse(res, 500, 'Failed to update project.', { details: error.message });
- }
+        const updatedProject = await projectService.updateProject(projectId, organizationId, filteredUpdateData);
+        res.status(200).json(updatedProject);
+    } catch (error) {
+        if (error.message.includes('Project not found')) {
+            return sendErrorResponse(res, 404, error.message);
+        }
+        if (error.message.includes('invalid or not members')) {
+            return sendErrorResponse(res, 400, error.message);
+        }
+        sendErrorResponse(res, 500, 'Failed to update project.', { details: error.message });
+    }
 };
 
 const archiveProject = async (req, res) => {
- try {
-   const { projectId } = req.params;
-   const organizationId = req.organizationId;
-   const { isArchived } = req.body;
+    try {
+        const { projectId } = req.params;
+        const organizationId = req.organizationId;
+        const { isArchived } = req.body;
 
-   if (typeof isArchived !== 'boolean') {
-     return sendErrorResponse(res, 400, 'Invalid value for isArchived. Must be a boolean.');
-   }
+        if (typeof isArchived !== 'boolean') {
+            return sendErrorResponse(res, 400, 'Invalid value for isArchived. Must be a boolean.');
+        }
 
-   const updatedProject = await projectService.archiveProject(projectId, organizationId, isArchived);
-   res.status(200).json(updatedProject);
- } catch (error) {
-   if (error.message.includes('Project not found')) {
-     return sendErrorResponse(res, 404, error.message);
-   }
-   sendErrorResponse(res, 500, 'Failed to update project archive status.', { details: error.message });
- }
+        const updatedProject = await projectService.archiveProject(projectId, organizationId, isArchived);
+        res.status(200).json(updatedProject);
+    } catch (error) {
+        if (error.message.includes('Project not found')) {
+            return sendErrorResponse(res, 404, error.message);
+        }
+        sendErrorResponse(res, 500, 'Failed to update project archive status.', { details: error.message });
+    }
 };
 
 
+const resetProjectFinances = async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        const organizationId = req.organizationId;
+        
+        // קריאה לשירות הכספים כדי לבצע את איפוס הכספים
+        await financeService.resetProjectFinances(organizationId, projectId);
+        
+        res.status(204).send(); // החזרת תשובה ריקה כסימן להצלחה (No Content)
+    } catch (error) {
+        console.error('Error in projectController.resetProjectFinances:', error);
+        // טיפול בשגיאות מהשירות, למשל אם הפרויקט לא נמצא
+        if (error.message.includes('Project not found')) {
+            return sendErrorResponse(res, 404, error.message);
+        }
+        sendErrorResponse(res, 500, 'Failed to reset project finances.', { details: error.message });
+    }
+};
+
 const deleteProject = async (req, res) => {
- try {
-   const { projectId } = req.params;
-   const organizationId = req.organizationId;
-   await projectService.deleteProject(projectId, organizationId);
-   res.status(204).send(); // 204 No Content for successful deletion
- } catch (error) {
-   if (error.message.includes('Project not found')) {
-     return sendErrorResponse(res, 404, error.message);
-   }
-   sendErrorResponse(res, 500, 'Failed to delete project.', { details: error.message });
- }
+    try {
+        const { projectId } = req.params;
+        const organizationId = req.organizationId;
+        await projectService.deleteProject(projectId, organizationId);
+        res.status(204).send();
+    } catch (error) {
+        if (error.message.includes('Project not found')) {
+            return sendErrorResponse(res, 404, error.message);
+        }
+        sendErrorResponse(res, 500, 'Failed to delete project.', { details: error.message });
+    }
 };
 
 module.exports = {
- getProjects,
- createProject,
- updateProject,
- archiveProject,
- deleteProject,
- getProjectById // צריך לייצא את הפונקציה כדי שהנתיב יפעל
+    getProjects,
+    createProject,
+    updateProject,
+    archiveProject,
+    deleteProject,
+    getProjectById,
+    resetProjectFinances 
 };

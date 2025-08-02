@@ -1,255 +1,272 @@
 // prisma/schema.prisma
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // Data Models
 
 model User {
-  id          String   @id @default(uuid())
-  fullName    String
-  phone       String   @unique
-  email       String?
-  profilePictureUrl String?
-  jobTitle    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String   @id @default(uuid())
+  fullName    String
+  phone       String   @unique
+  email       String?
+  profilePictureUrl String?
+  jobTitle    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  memberships            Membership[]
-  sentMessages           Message[]
-  comments               Comment[]
-  // מפנה לטבלת ה-Join המפורשת
-  projectTeamLeads       ProjectTeamLead[]
-  taskAssignees          TaskAssignee[]
-  teamMemberships        TeamMember[]
-  teamLeadAssignments    TeamLead[]
-  notifications          Notification[]
-  conversationParticipants ConversationParticipant[]
+  memberships            Membership[]
+  sentMessages           Message[]
+  comments               Comment[]
+  // מפנה לטבלת ה-Join המפורשת
+  projectTeamLeads       ProjectTeamLead[]
+  taskAssignees          TaskAssignee[]
+  teamMemberships        TeamMember[]
+  teamLeadAssignments    TeamLead[]
+  notifications          Notification[]
+  conversationParticipants ConversationParticipant[]
 }
 
 model Organization {
-  id             String         @id @default(uuid())
-  name           String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id             String         @id @default(uuid())
+  name           String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  memberships    Membership[]
-  projects       Project[]
-  teams          Team[]
-  financeEntries FinanceEntry[]
-  conversations  Conversation[]
+  memberships    Membership[]
+  projects       Project[]
+  teams          Team[]
+  financeEntries FinanceEntry[]
+  conversations  Conversation[]
+ monthlyBudgets  MonthlyBudget[]
 }
 
-model Membership { // <--- וודא שהשורה הזו קיימת בדיוק כך!
-  id             String     @id @default(uuid())
-  userId         String
-  organizationId String
-  role           String // 'SUPER_ADMIN', 'ADMIN', 'TEAM_LEADER', 'EMPLOYEE'
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  jobTitle       String?
+model Membership {
+  id             String     @id @default(uuid())
+  userId         String
+  organizationId String
+  role           String // 'SUPER_ADMIN', 'ADMIN', 'TEAM_LEADER', 'EMPLOYEE'
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  jobTitle       String?
 
-  user           User       @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade) // **ודא ש-onDelete: Cascade נמצא כאן**
+  user           User       @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, organizationId])
+  @@unique([userId, organizationId])
 }
 
 model Project {
-  id             String         @id @default(uuid())
-  organizationId String
-  title          String
-  description    String?
-  startDate      DateTime?      @db.Date
-  endDate        DateTime?      @db.Date
-  budget         Float?
-  status         String         @default("מתוכנן")
-  isArchived     Boolean        @default(false)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id             String         @id @default(uuid())
+  organizationId String
+  title          String
+  description    String?
+  startDate      DateTime?      @db.Date
+  endDate        DateTime?      @db.Date
+  // 💡 שינוי: הוסר incomeBudget ו-expenseBudget
+  status         String         @default("מתוכנן")
+  isArchived     Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  tasks          Task[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tasks          Task[]
 
-  // מפנה לטבלת ה-Join המפורשת
-  projectTeamLeads ProjectTeamLead[]
-  financeEntries FinanceEntry[]
+  // מפנה לטבלת ה-Join המפורשת
+  projectTeamLeads ProjectTeamLead[]
+  financeEntries FinanceEntry[]
+  monthlyBudgets MonthlyBudget[] 
+}
+
+model MonthlyBudget {
+  id             String   @id @default(uuid())
+  projectId      String
+  organizationId  String 
+  year           Int
+  month          Int
+  incomeBudget   Float
+  expenseBudget  Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organization  Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([projectId, year, month]) // מוודא שאין כפילות של חודש/שנה עבור אותו פרויקט
 }
 
 model Task {
-  id             String         @id @default(uuid())
-  projectId      String
-  title          String
-  description    String?
-  startDate      DateTime?      @db.Date
-  endDate        DateTime?      @db.Date
-  expense        Float?
-  status         String         @default("מתוכנן")
-  color          String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  displayOrder   Int            @default(0) // שדה חדש
+  id             String         @id @default(uuid())
+  projectId      String
+  title          String
+  description    String?
+  startDate      DateTime?      @db.Date
+  endDate        DateTime?      @db.Date
+  expense        Float?
+  status         String         @default("מתוכנן")
+  color          String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  displayOrder   Int            @default(0) // שדה חדש
 
-  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  assignees      TaskAssignee[]
-  // **שינוי:** הסרת `@relation(onDelete: Cascade)` מכאן. המיקום הנכון הוא במודל `Comment` על השדה `task`.
-  comments       Comment[]
-  financeEntries FinanceEntry[]
+  assignees      TaskAssignee[]
+  comments       Comment[]
+  financeEntries FinanceEntry[]
 }
 
 model Comment {
-  id          String   @id @default(uuid())
-  taskId      String
-  authorId    String
-  content     String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String   @id @default(uuid())
+  taskId      String
+  authorId    String
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // **הוספת onDelete: Cascade כאן**
-  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  author      User     @relation(fields: [authorId], references: [id])
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author      User     @relation(fields: [authorId], references: [id])
 }
 
 model Team {
-  id             String     @id @default(uuid())
-  organizationId String
-  name           String
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  id             String     @id @default(uuid())
+  organizationId String
+  name           String
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  teamMembers    TeamMember[]
-  teamLeads      TeamLead[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teamMembers    TeamMember[]
+  teamLeads      TeamLead[]
 }
 
 model ProjectTeamLead {
-  projectId   String
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  projectId   String
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
 
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([projectId, userId])
+  @@id([projectId, userId])
 }
 
 model TaskAssignee {
-  id          String   @id @default(uuid())
-  taskId      String
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String   @id @default(uuid())
+  taskId      String
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // **הוספת onDelete: Cascade כאן**
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
 
-  @@unique([taskId, userId])
+  @@unique([taskId, userId])
 }
 
 model TeamMember {
-  id          String   @id @default(uuid())
-  teamId      String
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String   @id @default(uuid())
+  teamId      String
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // **הוספת onDelete: Cascade כאן**
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
 
-  @@unique([teamId, userId])
+  @@unique([teamId, userId])
 }
 
 model TeamLead {
-  id          String   @id @default(uuid())
-  teamId      String
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String   @id @default(uuid())
+  teamId      String
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // **הוספת onDelete: Cascade כאן**
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
 
-  @@unique([teamId, userId])
+  @@unique([teamId, userId])
 }
 
 model FinanceEntry {
-  id             String         @id @default(uuid())
-  organizationId String
-  type           String         // 'INCOME' | 'EXPENSE'
-  amount         Float
-  description    String
-  date           DateTime       @db.Date
-  projectId      String?
-  taskId         String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id             String         @id @default(uuid())
+  organizationId String
+  type           String         // 'INCOME' | 'EXPENSE'
+  amount         Float
+vatPercentage   Float?         // 💡 חדש: מע"מ באחוזים
+  deductions      Float?         // 💡 חדש: עמלות / ניכויים
+  netAmount       Float?         // 💡 חדש: סכום נטו (יחושב בצד השרת)
+  status          String?        // 💡 חדש: סטטוס התשלום
+  description    String
+  notes           String?        // 💡 הוספה של שדה Notes
+  date           DateTime       @db.Date
+  projectId      String?
+  taskId         String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project        Project?       @relation(fields: [projectId], references: [id])
-  task           Task?          @relation(fields: [taskId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project?       @relation(fields: [projectId], references: [id])
+  task           Task?          @relation(fields: [taskId], references: [id])
 }
 
 model Message {
-  id             String         @id @default(uuid())
-  conversationId String
-  senderId       String
-  text           String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id             String         @id @default(uuid())
+  conversationId String
+  senderId       String
+  text           String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  // **הוספת onDelete: Cascade כאן**
-  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender         User           @relation(fields: [senderId], references: [id])
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User           @relation(fields: [senderId], references: [id])
 }
 
 model Conversation {
-  id             String         @id @default(uuid())
-  organizationId String
-  type           String         // 'private' | 'group'
-  name           String?
-  avatarUrl      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id             String         @id @default(uuid())
+  organizationId String
+  type           String         // 'private' | 'group'
+  name           String?
+  avatarUrl      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  messages       Message[]
-  participants   ConversationParticipant[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages       Message[]
+  participants   ConversationParticipant[]
 }
 
 model ConversationParticipant {
-  id             String         @id @default(uuid())
-  conversationId String
-  userId         String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id             String         @id @default(uuid())
+  conversationId String
+  userId         String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  // **הוספת onDelete: Cascade כאן**
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  // **הוספת onDelete: Cascade כאן**
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([conversationId, userId])
+  @@unique([conversationId, userId])
 }
 
 model Notification {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String   // 'comment' | 'assignment' | 'status_change' | 'deadline'
-  text        String
-  read        Boolean  @default(false)
-  link        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String   @id @default(uuid())
+  userId      String
+  type        String   // 'comment' | 'assignment' | 'status_change' | 'deadline'
+  text        String
+  read        Boolean  @default(false)
+  link        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }

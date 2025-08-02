@@ -60,7 +60,7 @@ app.get('/test-db', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api', userTeamRoutes);
-app.use('/api/finance', financeRoutes);
+app.use('/api/finances', financeRoutes);
 app.use('/api/conversations', chatRoutes);
 app.use('/api/organizations', organizationRoutes); // **שימוש בנתיב החדש**
 
