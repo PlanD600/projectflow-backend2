@@ -37,9 +37,9 @@ const getProjects = async (req, res) => {
         const organizationId = req.organizationId;
         const userId = req.user.userId;
         const userRole = req.user.role;
-        const { page, limit, sortBy, sortOrder } = req.query;
+        const { page, limit, sortBy, sortOrder,isArchived } = req.query;
 
-        const projectsResult = await projectService.getAllProjects(organizationId, userId, userRole, { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder });
+        const projectsResult = await projectService.getAllProjects(organizationId, userId, userRole, { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder,isArchived: isArchived === 'true' });
         
         const projectsWithDynamicStatus = projectsResult.data.map(project => {
             const { status, completionPercentage } = calculateProjectStatus(project.tasks);
@@ -71,7 +71,8 @@ const createProject = async (req, res) => {
     try {
         const organizationId = req.organizationId; 
         // 💡 תיקון: פירוק השדות החדשים מהבקשה
-        const { title, description, teamLeads, startDate, endDate, monthlyBudgets } = req.body;
+        const { title, description, teamLeads, teamIds, startDate, endDate, monthlyBudgets } = req.body;
+        console.log('Data sent to createProject service:', { teamLeads });
 
         if (!title || !Array.isArray(teamLeads)) {
             return sendErrorResponse(res, 400, 'Title and teamLeads array are required.');
@@ -81,6 +82,7 @@ const createProject = async (req, res) => {
             title,
             description,
             teamLeads,
+            teamIds,
             startDate,
             endDate,
             monthlyBudgets
@@ -101,7 +103,7 @@ const updateProject = async (req, res) => {
         const updateData = req.body;
 
         // 💡 תיקון: עדכון המערך כך שיכלול את השדות החדשים
-        const allowedUpdates = ['title', 'description', 'teamLeads', 'startDate', 'endDate', 'status', 'isArchived', 'monthlyBudgets'];
+        const allowedUpdates = ['title', 'description', 'teamLeads', 'teamIds', 'startDate', 'endDate', 'status', 'isArchived', 'monthlyBudgets'];
         const filteredUpdateData = Object.keys(updateData)
             .filter(key => allowedUpdates.includes(key))
             .reduce((obj, key) => {

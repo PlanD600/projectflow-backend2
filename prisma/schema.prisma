@@ -68,7 +68,7 @@ model Project {
   description    String?
   startDate      DateTime?      @db.Date
   endDate        DateTime?      @db.Date
-  // 💡 שינוי: הוסר incomeBudget ו-expenseBudget
+   teams          Team[] // הוספת שדה חדש לקשר ישיר לצוותים
   status         String         @default("מתוכנן")
   isArchived     Boolean        @default(false)
   createdAt      DateTime       @default(now())
@@ -139,6 +139,7 @@ model Team {
   name           String
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+  projects       Project[]
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   teamMembers    TeamMember[]
