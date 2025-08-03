@@ -94,6 +94,20 @@ const deleteTask = async (req, res) => {
   }
 };
 
+const getTaskById = async (req, res) => {
+  try {
+    const { projectId, taskId } = req.params;
+    const organizationId = req.organizationId;
+    const task = await taskService.getTaskForProject(taskId, projectId, organizationId);
+    res.status(200).json(task);
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      return sendErrorResponse(res, 404, error.message);
+    }
+    sendErrorResponse(res, 500, 'Failed to retrieve task.', { details: error.message });
+  }
+};
+
 const addCommentToTask = async (req, res) => {
   try {
     const { projectId, taskId } = req.params;
@@ -147,5 +161,6 @@ module.exports = {
   updateTask,
   deleteTask,
   addCommentToTask,
-  reorderProjectTasks, // ייצוא הפונקציה החדשה
+  reorderProjectTasks,
+  getTaskById,
 };

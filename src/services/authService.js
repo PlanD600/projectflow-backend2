@@ -3,6 +3,8 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/tokenUtils');
 const { generateOtp, sendOtp, verifyOtp } = require('../utils/otpUtils');
+const fs = require('fs'); // ייבוא חדש
+const path = require('path'); // ייבוא חדש
 
 const prisma = new PrismaClient();
 
@@ -207,6 +209,54 @@ const updateMyProfile = async (userId, updates) => {
   return updatedUser;
 };
 
+/**
+ * Updates the profile picture URL of the authenticated user.
+ * @param {string} userId - The ID of the authenticated user.
+ * @param {string} filePath - The path where the new picture is stored.
+ * @returns {Promise<object>} The updated user profile.
+ */
+const updateProfilePicture = async (userId, filePath) => {
+    // 1. קבלת נתיב התמונה הנוכחית מהמסד
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { profilePictureUrl: true }
+    });
+
+    // 2. עדכון נתיב התמונה החדש במסד הנתונים
+    const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+            profilePictureUrl: `/uploads/${path.basename(filePath)}`, // שמירת הנתיב הציבורי במסד
+        },
+        select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            profilePictureUrl: true,
+            jobTitle: true,
+            createdAt: true,
+            updatedAt: true
+        },
+    });
+
+    // 3. מחיקת הקובץ הישן אם קיים
+    if (user && user.profilePictureUrl) {
+        const oldFilePath = path.join(__dirname, '..', user.profilePictureUrl);
+        // לוודא שהקובץ קיים לפני הניסיון למחוק אותו
+        if (fs.existsSync(oldFilePath)) {
+            fs.unlink(oldFilePath, (err) => {
+                if (err) {
+                    console.error('Error deleting old profile picture:', err);
+                } else {
+                    console.log(`Old file ${oldFilePath} deleted successfully.`);
+                }
+            });
+        }
+    }
+
+    return updatedUser;
+};
 
 module.exports = {
   registerUser,
@@ -215,4 +265,5 @@ module.exports = {
   getMyMemberships,
   getMyProfile,
   updateMyProfile,
+  updateProfilePicture,
 };

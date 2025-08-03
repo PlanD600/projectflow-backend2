@@ -6,6 +6,7 @@ const { authorizeRoles } = require('../middleware/authMiddleware'); // authMiddl
 const router = express.Router({ mergeParams: true }); // mergeParams allows access to projectId from parent route
 
 router.get('/', taskController.getProjectTasks); // EMPLOYEE and up
+router.get('/:taskId', taskController.getTaskById); // 💡 הוסף את הנתיב הזה
 
 router.post(
   '/',

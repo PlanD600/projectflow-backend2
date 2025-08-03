@@ -105,6 +105,21 @@ const updateMyProfile = async (req, res) => {
     }
 };
 
+const uploadProfilePicture = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const file = req.file;
+
+    if (!file) {
+      return sendErrorResponse(res, 400, 'No file uploaded.');
+    }
+
+    const updatedUser = await authService.updateProfilePicture(userId, file.path);
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    sendErrorResponse(res, 500, 'Failed to upload profile picture.', { details: error.message });
+  }
+};
 
 module.exports = {
   register,
@@ -113,4 +128,5 @@ module.exports = {
   getMyMemberships,
   getMyProfile,
   updateMyProfile,
+  uploadProfilePicture,
 };

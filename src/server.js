@@ -38,6 +38,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors()); 
 // 2. הפעלת JSON parser
 app.use(express.json());
+app.use('/uploads', express.static('uploads'));
 
 // --- Routes ---
 app.get('/', (req, res) => {

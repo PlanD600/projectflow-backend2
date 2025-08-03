@@ -3,6 +3,8 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const notificationService = require('./notificationService'); // ייבוא שירות ההתראות
 
+
+
 /**
  * Retrieves all tasks for a specific project.
  * @param {string} projectId - The ID of the project.
@@ -54,17 +56,21 @@ const getTasksForProject = async (projectId, organizationId, { page = 1, limit =
     },
   });
 
-  const formattedTasks = tasks.map(task => ({
-    ...task,
-    // Ensure dates are in YYYY-MM-DD format for client, as per requirement
-    startDate: task.startDate ? task.startDate.toISOString().split('T')[0] : null,
-    endDate: task.endDate ? task.endDate.toISOString().split('T')[0] : null,
-    assignees: task.assignees.map(a => a.user),
-    subtasks: [], // Subtasks are not part of this iteration for simplicity, as per model
-    assigneesIds: task.assignees.map(a => a.user.id), // Add assigneesIds for frontend convenience
-    // Remove the intermediate assignees array for cleaner response
-    assignees: undefined,
-  }));
+  const formattedTasks = tasks.map(task => {
+    // שימוש ב-destructuring כדי להפריד את assignees משאר הנתונים
+    const { assignees, ...restOfTask } = task;
+
+    return {
+      ...restOfTask,
+      // Ensure dates are in YYYY-MM-DD format for client, as per requirement
+      startDate: task.startDate ? task.startDate.toISOString().split('T')[0] : null,
+      endDate: task.endDate ? task.endDate.toISOString().split('T')[0] : null,
+      // בניית המערך assignees עם אובייקטים מלאים של משתמשים
+      assignees: assignees.map(a => a.user),
+      subtasks: [], // Subtasks are not part of this iteration for simplicity, as per model
+      assigneesIds: assignees.map(a => a.user.id), // Add assigneesIds for frontend convenience
+    };
+  });
 
   const totalTasks = await prisma.task.count({
     where: { projectId },
@@ -317,6 +323,63 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
     }
   });
 
+/**
+ * Retrieves a single task for a specific project.
+ * @param {string} taskId - The ID of the task.
+ * @param {string} projectId - The ID of the project.
+ * @param {string} organizationId - The ID of the current organization.
+ * @returns {Promise<object>} The task object.
+ */
+const getTaskForProject = async (taskId, projectId, organizationId) => {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId, organizationId },
+  });
+
+  if (!project) {
+    throw new Error('Project not found or does not belong to your organization.');
+  }
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId, projectId },
+    include: {
+      assignees: {
+        include: {
+          user: {
+            select: { id: true, fullName: true, email: true, profilePictureUrl: true, jobTitle: true }
+          }
+        }
+      },
+      comments: {
+        include: {
+          author: {
+            select: { id: true, fullName: true, profilePictureUrl: true }
+          }
+        },
+        orderBy: {
+          createdAt: 'asc'
+        }
+      },
+    },
+  });
+
+  if (!task) {
+      throw new Error('Task not found in this project.');
+  }
+
+  const formattedTask = {
+    ...task,
+    startDate: task.startDate ? task.startDate.toISOString().split('T')[0] : null,
+    endDate: task.endDate ? task.endDate.toISOString().split('T')[0] : null,
+    assignees: task.assignees.map(a => a.user),
+    subtasks: [],
+    assigneesIds: task.assignees.map(a => a.user.id),
+    assignees: undefined,
+  };
+
+  return formattedTask;
+};
+  
+
   // --- NOTIFICATION: Status Change ---
   if (updatedTask.status !== oldStatus) {
       // Notify all current assignees and project leads about status change
@@ -494,6 +557,64 @@ const reorderTasks = async (projectId, organizationId, taskIdsInOrder) => {
     );
 };
 
+/**
+ * Retrieves a single task for a specific project.
+ * @param {string} taskId - The ID of the task.
+ * @param {string} projectId - The ID of the project.
+ * @param {string} organizationId - The ID of the current organization.
+ * @returns {Promise<object>} The task object.
+ */
+const getTaskForProject = async (taskId, projectId, organizationId) => {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId, organizationId },
+  });
+
+  if (!project) {
+    throw new Error('Project not found or does not belong to your organization.');
+  }
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId, projectId },
+    include: {
+      assignees: {
+        include: {
+          user: {
+            select: { id: true, fullName: true, email: true, profilePictureUrl: true, jobTitle: true }
+          }
+        }
+      },
+      comments: {
+        include: {
+          author: {
+            select: { id: true, fullName: true, profilePictureUrl: true }
+          }
+        },
+        orderBy: {
+          createdAt: 'asc'
+        }
+      },
+    },
+  });
+
+  if (!task) {
+      throw new Error('Task not found in this project.');
+  }
+
+  // שימוש ב-destructuring כדי להפריד את assignees משאר הנתונים
+  const { assignees, ...restOfTask } = task;
+
+  const formattedTask = {
+    ...restOfTask,
+    startDate: task.startDate ? task.startDate.toISOString().split('T')[0] : null,
+    endDate: task.endDate ? task.endDate.toISOString().split('T')[0] : null,
+    // בניית המערך assignees עם אובייקטים מלאים של משתמשים
+    assignees: assignees.map(a => a.user),
+    subtasks: [],
+    assigneesIds: assignees.map(a => a.user.id),
+  };
+
+  return formattedTask;
+};
 
 module.exports = {
   getTasksForProject,
@@ -501,5 +622,6 @@ module.exports = {
   updateTask,
   deleteTask,
   addCommentToTask,
-  reorderTasks, // ייצוא הפונקציה החדשה
+  reorderTasks,
+  getTaskForProject
 };
