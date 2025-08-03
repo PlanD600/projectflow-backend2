@@ -76,7 +76,7 @@ const registerUser = async (fullName, phone, organizationName) => {
 const sendOtpForLogin = async (phone) => {
   const user = await prisma.user.findUnique({ where: { phone } });
   if (!user) {
-    throw new Error('User not found.');
+    throw new Error('אופס, נראה שעדיין לא הכרנו! בואו נתחיל - הירשמו עכשיו כדי להתחיל לנהל פרויקטים.');
   }
 
   const otpCode = generateOtp();

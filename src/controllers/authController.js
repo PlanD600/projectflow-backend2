@@ -29,7 +29,7 @@ const sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone) {
-      return sendErrorResponse(res, 400, 'Phone number is required.');
+      return sendErrorResponse(res, 400, 'שכחנו משהו? כדי להתקדם, צריך רק להכניס את מספר הטלפון. אנחנו כאן, מחכים לך!');
     }
     const result = await authService.sendOtpForLogin(phone);
     res.status(200).json(result);
@@ -37,7 +37,7 @@ const sendOtp = async (req, res) => {
     if (error.message.includes('User not found')) {
       return sendErrorResponse(res, 404, error.message); // 404 Not Found
     }
-    sendErrorResponse(res, 500, 'Failed to send OTP.', { details: error.message });
+    sendErrorResponse(res, 500, 'אופס, נראה שעדיין לא הכרנו! בואו נתחיל - הירשמו עכשיו כדי להתחיל לנהל פרויקטים.', { details: error.message });
   }
 };
 
