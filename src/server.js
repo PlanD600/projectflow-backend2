@@ -139,7 +139,7 @@ startDeadlineScheduler(); // שורה חדשה: הפעלת ה-scheduler
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  console.log(`Access it at http://localhost:${PORT}`);
+  console.log(`Access it at https://api.mypland.com:${PORT}`);
 });
 
 process.on('beforeExit', async () => {
