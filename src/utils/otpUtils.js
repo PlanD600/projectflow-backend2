@@ -19,15 +19,16 @@ const generateOtp = () => {
  * @param {string} otpCode - The OTP code to send.
  * @returns {Promise<void>}
  */
-const sendOtp = async (phone, otpCode) => {
-  console.log(`--- Sending OTP ---`);
-  console.log(`To: ${phone}`);
-  console.log(`OTP Code: ${otpCode}`);
-  console.log(`-------------------`);
+// const sendOtp = async (phone, otpCode) => {
+//   console.log(`--- Sending OTP ---`);
+//   console.log(`To: ${phone}`);
+//   console.log(`OTP Code: ${otpCode}`);
+//   console.log(`-------------------`);
   // TODO: Integrate with a real SMS service like Twilio here
   // Example with Twilio (requires TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER in .env)
-  /*
-  const client = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+const sendOtp = async (phone, otpCode) => {
+const client = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
   try {
     await client.messages.create({
       body: `Your ProjectFlow OTP is: ${otpCode}`,
@@ -39,7 +40,6 @@ const sendOtp = async (phone, otpCode) => {
     console.error(`Error sending OTP to ${phone}:`, error);
     throw new Error('Failed to send OTP.');
   }
-  */
 };
 
 /**

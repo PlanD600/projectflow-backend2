@@ -34,7 +34,7 @@ const sendOtp = async (req, res) => {
     const result = await authService.sendOtpForLogin(phone);
     res.status(200).json(result);
   } catch (error) {
-    if (error.message.includes('User not found')) {
+    if (error.message.includes('משתמש לא נמצא')) {
       return sendErrorResponse(res, 404, error.message); // 404 Not Found
     }
     sendErrorResponse(res, 500, 'אופס, נראה שעדיין לא הכרנו! בואו נתחיל - הירשמו עכשיו כדי להתחיל לנהל פרויקטים.', { details: error.message });
@@ -45,15 +45,15 @@ const verifyOtp = async (req, res) => {
   try {
     const { phone, otpCode } = req.body;
     if (!phone || !otpCode) {
-      return sendErrorResponse(res, 400, 'Phone number and OTP code are required.');
+      return sendErrorResponse(res, 400, 'חסר קוד אימות');
     }
     const result = await authService.verifyOtpAndLogin(phone, otpCode);
     res.status(200).json(result);
   } catch (error) {
-    if (error.message.includes('User not found') || error.message.includes('OTP expired or not sent') || error.message.includes('Invalid OTP code') || error.message.includes('User has no active memberships')) {
+    if (error.message.includes('User not found') || error.message.includes('קוד האימות לא נשלח') || error.message.includes('הכנס קוד אימות') || error.message.includes('למשתמש אין יותר גישה')) {
       return sendErrorResponse(res, 401, error.message); // Unauthorized
     }
-    sendErrorResponse(res, 500, 'OTP verification failed.', { details: error.message });
+    sendErrorResponse(res, 500, 'קוד האימות נכשל', { details: error.message });
   }
 };
 
