@@ -25,7 +25,7 @@ const getTasksForProject = async (projectId, organizationId, { page = 1, limit =
   });
 
   if (!project) {
-    throw new Error('Project not found or does not belong to your organization.');
+    throw new Error('נראה שהפרויקט לא נמצא, או שהוא אינו שייך לארגון שלך.');
   }
 
   const tasks = await prisma.task.findMany({
@@ -103,7 +103,7 @@ const getTasksForProject = async (projectId, organizationId, { page = 1, limit =
 const createTask = async (projectId, organizationId, { title, description, assigneesIds = [], startDate, endDate, expense, color }) => {
   // Validate required fields (startDate, endDate now mandatory)
   if (!startDate || !endDate) {
-      throw new Error('Start date and End date are required for task creation.');
+      throw new Error('כדי ליצור את המשימה, צריך להזין תאריך התחלה וסיום.');
   }
 
   // Verify project exists within the organization
@@ -112,7 +112,7 @@ const createTask = async (projectId, organizationId, { title, description, assig
   });
 
   if (!project) {
-    throw new Error('Project not found or does not belong to your organization.');
+    throw new Error('נראה שהפרויקט לא נמצא, או שהוא אינו שייך לארגון שלך.');
   }
 
   // Validate assignees exist and belong to the organization
@@ -130,7 +130,7 @@ const createTask = async (projectId, organizationId, { title, description, assig
       select: { id: true }
     });
     if (existingUsers.length !== assigneesIds.length) {
-      throw new Error('One or more specified assignees are invalid or not members of this organization.');
+      throw new Error('אחד או יותר מהאחראים שהוקצו אינם חברים בארגון.');
     }
   }
 
@@ -203,7 +203,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
   });
 
   if (!project) {
-    throw new Error('Project not found or does not belong to your organization.');
+    throw new Error('נראה שהפרויקט לא נמצא, או שהוא אינו שייך לארגון שלך.');
   }
 
   // 2. Verify task exists within the project
@@ -213,7 +213,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
   });
 
   if (!task) {
-    throw new Error('Task not found in this project.');
+    throw new Error('המשימה לא נמצאה בפרויקט הזה.');
   }
 
   // Store old values for comparison (for notifications)
@@ -253,7 +253,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
         select: { id: true }
       });
       if (existingUsers.length !== assigneesIds.length) {
-        throw new Error('One or more specified assignees are invalid or not members of this organization.');
+        throw new Error('אחד או יותר מהאחראים שהוקצו אינם חברים בארגון.');
       }
 
       await prisma.$transaction([
@@ -273,7 +273,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
           await notificationService.createAndSendNotification(
               assigneeId,
               'assignment',
-              `You have been assigned to task "${task?.title}" in project "${project.title}".`,
+              `הוקצת למשימה חדשה! "${task?.title}" בפרויקט "${project.title}".`,
               `/projects/${projectId}/tasks/${taskId}` // Example link for frontend navigation
           );
       }
@@ -281,7 +281,7 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
           await notificationService.createAndSendNotification(
               assigneeId,
               'assignment',
-              `You have been unassigned from task "${task?.title}" in project "${project.title}".`,
+              `המשימה כבר לא שלך. "${task?.title}" בפרויקט "${project.title}".`,
               `/projects/${projectId}/tasks/${taskId}`
           );
       }
@@ -290,11 +290,11 @@ const updateTask = async (taskId, projectId, organizationId, currentUserId, curr
     // Assignees can only update status
     const restrictedUpdates = Object.keys(updateData).filter(key => !allowedUpdatesForAssignee.includes(key));
     if (restrictedUpdates.length > 0) {
-      throw new Error(`Assignees can only update 'status'. Attempted to update: ${restrictedUpdates.join(', ')}.`);
+      throw new Error(`אפשר לעדכן כאן רק את הסטטוס, ולא לשנות פרטים אחרים. נסה שוב! ${restrictedUpdates.join(', ')}.`);
     }
     finalUpdateData = { status: updateData.status };
   } else {
-    throw new Error('You do not have permission to update this task.');
+    throw new Error('אופס, אין לך הרשאה לעדכן את המשימה הזו.');
   }
 
   // Perform the task update
@@ -336,7 +336,7 @@ const getTaskForProject = async (taskId, projectId, organizationId) => {
   });
 
   if (!project) {
-    throw new Error('Project not found or does not belong to your organization.');
+    throw new Error('הפרויקט לא נמצא, או שאינו שייך לארגון שלך. אנא בדוק את הפרטים שוב.');
   }
 
   const task = await prisma.task.findUnique({
@@ -363,7 +363,7 @@ const getTaskForProject = async (taskId, projectId, organizationId) => {
   });
 
   if (!task) {
-      throw new Error('Task not found in this project.');
+      throw new Error('נראה שהמשימה לא שייכת לפרויקט הזה.');
   }
 
   const formattedTask = {
@@ -393,8 +393,8 @@ const getTaskForProject = async (taskId, projectId, organizationId) => {
       for (const userIdToNotify of uniqueUsersToNotify) {
           await notificationService.createAndSendNotification(
               userIdToNotify,
-              'status_change',
-              `Task "${updatedTask?.title}" status changed from "${oldStatus}" to "${updatedTask.status}" in project "${project.title}".`,
+              'הסטטוס השתנה.',
+              `משימה "${updatedTask?.title}" הסטטוס שונה בהצלחה מ "${oldStatus}" ל "${updatedTask.status}" בפרויקט  "${project.title}".`,
               `/projects/${projectId}/tasks/${taskId}`
           );
       }
@@ -427,7 +427,7 @@ const deleteTask = async (taskId, projectId, organizationId) => {
   });
 
   if (!project) {
-    throw new Error('Project not found or does not belong to your organization.');
+    throw new Error('הפרויקט לא נמצא, או שאינו שייך לארגון שלך.');
   }
 
   const task = await prisma.task.findUnique({
@@ -435,7 +435,7 @@ const deleteTask = async (taskId, projectId, organizationId) => {
   });
 
   if (!task) {
-    throw new Error('Task not found in this project.');
+    throw new Error('אופס, המשימה לא נמצאה בפרויקט הזה.');
   }
 
   // Delete related comments and assignees first using transactions
@@ -470,7 +470,7 @@ const addCommentToTask = async (taskId, projectId, organizationId, authorId, con
   });
 
   if (!project) {
-    throw new Error('Project not found or does not belong to your organization.');
+    throw new Error('נראה שהפרויקט לא נמצא, או שהוא אינו שייך לארגון שלך.');
   }
 
   const task = await prisma.task.findUnique({
@@ -479,7 +479,7 @@ const addCommentToTask = async (taskId, projectId, organizationId, authorId, con
   });
 
   if (!task) {
-    throw new Error('Task not found in this project.');
+    throw new Error('המשימה לא נמצאה בפרויקט הזה.');
   }
 
   const newComment = await prisma.comment.create({
@@ -507,8 +507,8 @@ const addCommentToTask = async (taskId, projectId, organizationId, authorId, con
   for (const userIdToNotify of uniqueUsersToNotify) {
       await notificationService.createAndSendNotification(
           userIdToNotify,
-          'comment',
-          `New comment on task "${task?.title}" in project "${project.title}" by ${newComment.author.fullName}.`,
+          'תגובה',
+          `תגובה חדשה למשימה "${task?.title}" בפרויקט "${project.title}" מ- ${newComment.author.fullName}.`,
           `/projects/${projectId}/tasks/${taskId}` // Link for easy navigation in frontend
       );
   }
@@ -530,7 +530,7 @@ const reorderTasks = async (projectId, organizationId, taskIdsInOrder) => {
     });
 
     if (!project) {
-        throw new Error('Project not found or does not belong to your organization.');
+        throw new Error('נראה שהפרויקט לא נמצא, או שהוא אינו שייך לארגון שלך.');
     }
 
     // Ensure all task IDs belong to this project and organization
@@ -543,7 +543,7 @@ const reorderTasks = async (projectId, organizationId, taskIdsInOrder) => {
     });
 
     if (existingTasks.length !== taskIdsInOrder.length) {
-        throw new Error('One or more task IDs are invalid or do not belong to this project.');
+        throw new Error('אחד או יותר ממספרי המשימות אינם תקינים או שאינם שייכים לפרויקט זה.');
     }
 
     // Use a transaction for atomicity to update displayOrder for all tasks
@@ -570,7 +570,7 @@ const getTaskForProject = async (taskId, projectId, organizationId) => {
   });
 
   if (!project) {
-    throw new Error('Project not found or does not belong to your organization.');
+    throw new Error('נראה שהפרויקט לא נמצא, או שהוא אינו שייך לארגון שלך.');
   }
 
   const task = await prisma.task.findUnique({
@@ -597,7 +597,7 @@ const getTaskForProject = async (taskId, projectId, organizationId) => {
   });
 
   if (!task) {
-      throw new Error('Task not found in this project.');
+      throw new Error('המשימה לא נמצאה בפרויקט הזה.');
   }
 
   // שימוש ב-destructuring כדי להפריד את assignees משאר הנתונים
