@@ -35,7 +35,12 @@ const PORT = process.env.PORT || 3000;
 
 // --- Middlewares ---
 // 1. הפעלת CORS - חייב להיות לפני הגדרת ה-routes
-app.use(cors()); 
+//app.use(cors()); 
+const corsOptions = {
+    origin: 'https://mypland.com',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // כל השיטות הנדרשות
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Organization-Id'], // כל הכותרות הנדרשות
+};
 // 2. הפעלת JSON parser
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
