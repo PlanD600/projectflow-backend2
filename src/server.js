@@ -22,7 +22,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // אפשר להגביל לכתובת הספציפית של ה-frontend בייצור
+    origin: "https://projectf-3gqj.onrender.com", // אפשר להגביל לכתובת הספציפית של ה-frontend בייצור
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
   }
 });
