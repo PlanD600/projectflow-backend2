@@ -5,7 +5,6 @@ const authMiddleware = require('../middleware/authMiddleware'); // נבנה או
 const multer = require('multer'); // ייבוא חדש
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const prisma = new PrismaClient();
 const { PrismaClient } = require('@prisma/client');
 
 
