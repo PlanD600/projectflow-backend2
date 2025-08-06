@@ -104,6 +104,16 @@ const uploadProfilePicture = async (req, res) => {
   }
 };
 
+const sendOtp = async (req, res) => {
+  // TODO: לממש לפי הצורך שלך
+  res.status(501).json({ message: 'Not implemented' });
+};
+
+const verifyOtp = async (req, res) => {
+  // TODO: לממש לפי הצורך שלך
+  res.status(501).json({ message: 'Not implemented' });
+};
+
 module.exports = {
   register,
   login,
@@ -111,4 +121,6 @@ module.exports = {
   getMyProfile,
   updateMyProfile,
   uploadProfilePicture,
+  sendOtp,
+  verifyOtp
 };
