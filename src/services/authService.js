@@ -1,4 +1,3 @@
-// src/services/authService.js
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/tokenUtils');
@@ -10,11 +9,91 @@ const prisma = new PrismaClient();
 
 const otpStore = {}; // { phone: { code: '...', expiresAt: Date } }
 
-const registerUser = async (fullName, phone, organizationName) => {
-  // === תיקון 1: ניקוי מספר הטלפון בתחילת הפונקציה ===
-  const formattedPhone = phone.replace(/\s/g, '');
+// רישום משתמש חדש - אימייל + סיסמה (טלפון אופציונלי)
+const registerUserWithEmail = async (fullName, email, password, organizationName) => {
+  // בדוק אם המשתמש כבר קיים עם אימייל
+  let user = await prisma.user.findUnique({ where: { email } });
+  if (user) {
+    throw new Error('User with this email already exists.');
+  }
+  // צור את הארגון והמשתמש החדש
+  const hashedPassword = await bcrypt.hash(password, 10);
 
-  // בדיקה אם משתמש כבר קיים עם המספר הנקי
+  const result = await prisma.$transaction(async (tx) => {
+    const organization = await tx.organization.create({
+      data: { name: organizationName }
+    });
+
+    user = await tx.user.create({
+      data: {
+        fullName,
+        email,
+        password: hashedPassword,
+        // phone: null (טלפון אופציונלי)
+      }
+    });
+
+    await tx.membership.create({
+      data: {
+        userId: user.id,
+        organizationId: organization.id,
+        role: 'SUPER_ADMIN',
+      }
+    });
+
+    return { user, organization };
+  });
+
+  return {
+    message: 'Registration successful.',
+    user: { id: result.user.id, email: result.user.email }
+  };
+};
+
+// התחברות עם אימייל וסיסמה בלבד
+const loginWithEmail = async (email, password) => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { memberships: { include: { organization: true } } },
+  });
+  if (!user) {
+    throw new Error('User not found.');
+  }
+
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) {
+    throw new Error('Invalid password.');
+  }
+
+  if (!user.memberships || user.memberships.length === 0) {
+    throw new Error('User has no active memberships. Please contact support.');
+  }
+  const defaultMembership = user.memberships[0];
+  const token = generateToken(user.id, defaultMembership.organizationId, defaultMembership.role);
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      fullName: user.fullName,
+      phone: user.phone,
+      email: user.email,
+      profilePictureUrl: user.profilePictureUrl,
+      jobTitle: user.jobTitle,
+      role: defaultMembership.role
+    },
+    memberships: user.memberships.map(m => ({
+      organizationId: m.organizationId,
+      role: m.role,
+      organization: m.organization
+    })),
+  };
+};
+
+// --- פונקציות טלפון/OTP נשארות לשימוש עתידי ---
+// רישום משתמש עם טלפון (אופציה עתידית)
+const registerUser = async (fullName, phone, organizationName) => {
+  const formattedPhone = phone.replace(/\s/g, '');
   let user = await prisma.user.findUnique({ where: { phone: formattedPhone } });
 
   if (user) {
@@ -23,16 +102,14 @@ const registerUser = async (fullName, phone, organizationName) => {
 
   const result = await prisma.$transaction(async (tx) => {
     const organization = await tx.organization.create({
-      data: {
-        name: organizationName,
-      },
+      data: { name: organizationName }
     });
 
     user = await tx.user.create({
       data: {
         fullName,
-        phone: formattedPhone, // === תיקון 2: שמירת המספר הנקי במסד הנתונים ===
-      },
+        phone: formattedPhone,
+      }
     });
 
     await tx.membership.create({
@@ -40,14 +117,13 @@ const registerUser = async (fullName, phone, organizationName) => {
         userId: user.id,
         organizationId: organization.id,
         role: 'SUPER_ADMIN',
-      },
+      }
     });
 
     return { user, organization };
   });
 
   const otpCode = generateOtp();
-  // === תיקון 3: שימוש במספר הנקי כמפתח ובשליחה ===
   otpStore[formattedPhone] = { code: otpCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000) };
   await sendOtp(formattedPhone, otpCode);
 
@@ -55,17 +131,14 @@ const registerUser = async (fullName, phone, organizationName) => {
 };
 
 const sendOtpForLogin = async (phone) => {
-  // === תיקון 1: ניקוי מספר הטלפון בתחילת הפונקציה ===
   const formattedPhone = phone.replace(/\s/g, '');
 
-  // חיפוש משתמש עם המספר הנקי
   const user = await prisma.user.findUnique({ where: { phone: formattedPhone } });
   if (!user) {
     throw new Error('אופס, נראה שעדיין לא הכרנו! בואו נתחיל - הירשמו עכשיו כדי להתחיל לנהל פרויקטים.');
   }
 
   const otpCode = generateOtp();
-  // === תיקון 2: שימוש במספר הנקי כמפתח ובשליחה ===
   otpStore[formattedPhone] = { code: otpCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000) };
   await sendOtp(formattedPhone, otpCode);
 
@@ -84,7 +157,6 @@ const verifyOtpAndLogin = async (phone, otpCode) => {
     throw new Error('User not found.');
   }
   
-  // כאן היה באג קטן, תיקנתי את שם המשתנה מ-storedOtpdData ל-storedOtpData
   const storedOtpData = otpStore[formattedPhone];
   if (!storedOtpData || storedOtpData.expiresAt < new Date()) {
     throw new Error('OTP expired or not sent. Please request a new one.');
@@ -121,6 +193,8 @@ const verifyOtpAndLogin = async (phone, otpCode) => {
     })),
   };
 };
+
+// --- פרטי משתמש ומנויים ---
 
 const getMyMemberships = async (userId) => {
   const memberships = await prisma.membership.findMany({
@@ -212,9 +286,11 @@ const updateProfilePicture = async (userId, filePath) => {
 };
 
 module.exports = {
-  registerUser,
-  sendOtpForLogin,
-  verifyOtpAndLogin,
+  registerUserWithEmail,    // הרשמה עם אימייל וסיסמה
+  loginWithEmail,           // התחברות עם אימייל וסיסמה
+  registerUser,             // הרשמה עם טלפון (אופציה עתידית)
+  sendOtpForLogin,          // התחברות עם טלפון (אופציה עתידית)
+  verifyOtpAndLogin,        // אימות OTP (אופציה עתידית)
   getMyMemberships,
   getMyProfile,
   updateMyProfile,

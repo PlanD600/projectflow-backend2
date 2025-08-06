@@ -1,7 +1,8 @@
-// src/routes/userTeamRoutes.js
 const express = require('express');
 const userTeamController = require('../controllers/userTeamController');
 const { authenticateToken, requireOrganizationId, authorizeRoles } = require('../middleware/authMiddleware');
+const userValidator = require('../validators/userValidator');
+const validateRequest = require('../middleware/validateRequest');
 
 const router = express.Router();
 
@@ -36,6 +37,20 @@ router.delete(
   userTeamController.removeUser
 );
 
+// ---------- NEW ROUTES FOR ADMIN EMAIL/PASSWORD MANAGEMENT ----------
+// עריכת אימייל ע"י אדמין/סופר-אדמין
+router.put(
+  '/users/:userId/email',
+  authorizeRoles(['ADMIN', 'SUPER_ADMIN']),
+  userTeamController.updateUserEmail
+);
+
+// עריכת סיסמה ע"י אדמין/סופר-אדמין
+router.put(
+  '/users/:userId/password',
+  authorizeRoles(['ADMIN', 'SUPER_ADMIN']),
+  userTeamController.updateUserPassword
+);
 
 // Team Routes (No changes here)
 router.get(
@@ -60,6 +75,29 @@ router.delete(
   '/teams/:teamId',
   authorizeRoles(['ADMIN', 'SUPER_ADMIN']),
   userTeamController.deleteTeam
+);
+
+router.post(
+  '/users/invite',
+  authorizeRoles(['ADMIN', 'SUPER_ADMIN']),
+  validateRequest(userValidator.inviteUserSchema),
+  userTeamController.inviteUser
+);
+
+// עדכון אימייל:
+router.put(
+  '/users/:userId/email',
+  authorizeRoles(['ADMIN', 'SUPER_ADMIN']),
+  validateRequest(userValidator.updateUserEmailSchema),
+  userTeamController.updateUserEmail
+);
+
+// עדכון סיסמה:
+router.put(
+  '/users/:userId/password',
+  authorizeRoles(['ADMIN', 'SUPER_ADMIN']),
+  validateRequest(userValidator.updateUserPasswordSchema),
+  userTeamController.updateUserPassword
 );
 
 module.exports = router;
