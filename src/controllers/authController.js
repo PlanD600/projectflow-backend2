@@ -1,4 +1,3 @@
-// src/controllers/authController.js
 const authService = require('../services/authService');
 
 // Helper for sending standardized error responses
@@ -6,103 +5,88 @@ const sendErrorResponse = (res, statusCode, message, errors = null) => {
   res.status(statusCode).json({ message, errors });
 };
 
+// הרשמת משתמש חדש עם אימייל וסיסמה
 const register = async (req, res) => {
   try {
-    const { fullName, phone, organizationName } = req.body;
-    if (!fullName || !phone || !organizationName) {
-      return sendErrorResponse(res, 400, 'Full name, phone, and organization name are required for registration.');
+    const { fullName, email, password, organizationName } = req.body;
+    if (!fullName || !email || !password || !organizationName) {
+      return sendErrorResponse(res, 400, 'Full name, email, password and organization name are required for registration.');
     }
-    const result = await authService.registerUser(fullName, phone, organizationName);
-    res.status(200).json(result); // Using 200 OK for success message, as specified by client spec
+    const result = await authService.registerUserWithEmail(fullName, email, password, organizationName);
+    res.status(200).json(result); // Using 200 OK for success message
   } catch (error) {
-    if (error.message.includes('User with this phone number already exists')) {
+    if (error.message.includes('User with this email already exists')) {
       return sendErrorResponse(res, 409, error.message); // 409 Conflict
     }
     if (error.message.includes('Organization with this name already exists')) {
-        return sendErrorResponse(res, 409, error.message); // 409 Conflict
+      return sendErrorResponse(res, 409, error.message); // 409 Conflict
     }
     sendErrorResponse(res, 500, 'Registration failed.', { details: error.message });
   }
 };
 
-const sendOtp = async (req, res) => {
+// התחברות עם אימייל וסיסמה
+const login = async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone) {
-      return sendErrorResponse(res, 400, 'שכחנו משהו? כדי להתקדם, צריך רק להכניס את מספר הטלפון. אנחנו כאן, מחכים לך!');
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return sendErrorResponse(res, 400, 'Email and password are required for login.');
     }
-    const result = await authService.sendOtpForLogin(phone);
+    const result = await authService.loginWithEmail(email, password);
     res.status(200).json(result);
   } catch (error) {
-    if (error.message.includes('משתמש לא נמצא')) {
-      return sendErrorResponse(res, 404, error.message); // 404 Not Found
-    }
-    sendErrorResponse(res, 500, 'אופס, נראה שעדיין לא הכרנו! בואו נתחיל - הירשמו עכשיו כדי להתחיל לנהל פרויקטים.', { details: error.message });
-  }
-};
-
-const verifyOtp = async (req, res) => {
-  try {
-    const { phone, otpCode } = req.body;
-    if (!phone || !otpCode) {
-      return sendErrorResponse(res, 400, 'חסר קוד אימות');
-    }
-    const result = await authService.verifyOtpAndLogin(phone, otpCode);
-    res.status(200).json(result);
-  } catch (error) {
-    if (error.message.includes('User not found') || error.message.includes('קוד האימות לא נשלח') || error.message.includes('הכנס קוד אימות') || error.message.includes('למשתמש אין יותר גישה')) {
+    if (error.message.includes('Invalid email or password') || error.message.includes('User not found')) {
       return sendErrorResponse(res, 401, error.message); // Unauthorized
     }
-    sendErrorResponse(res, 500, 'קוד האימות נכשל', { details: error.message });
+    sendErrorResponse(res, 500, 'Login failed.', { details: error.message });
   }
 };
 
+// שאר הפונקציות נשארות כפי שהן (לא דורשות שינוי)
 const getMyMemberships = async (req, res) => {
-    try {
-        // userId comes from the authentication middleware (next step)
-        const userId = req.user.userId;
-        const memberships = await authService.getMyMemberships(userId);
-        res.status(200).json(memberships);
-    } catch (error) {
-        sendErrorResponse(res, 500, 'Failed to fetch memberships.', { details: error.message });
-    }
+  try {
+    const userId = req.user.userId;
+    const memberships = await authService.getMyMemberships(userId);
+    res.status(200).json(memberships);
+  } catch (error) {
+    sendErrorResponse(res, 500, 'Failed to fetch memberships.', { details: error.message });
+  }
 };
 
 const getMyProfile = async (req, res) => {
-    try {
-        const userId = req.user.userId;
-        const user = await authService.getMyProfile(userId);
-        res.status(200).json(user);
-    } catch (error) {
-        if (error.message.includes('User profile not found')) {
-            return sendErrorResponse(res, 404, error.message);
-        }
-        sendErrorResponse(res, 500, 'Failed to fetch user profile.', { details: error.message });
+  try {
+    const userId = req.user.userId;
+    const user = await authService.getMyProfile(userId);
+    res.status(200).json(user);
+  } catch (error) {
+    if (error.message.includes('User profile not found')) {
+      return sendErrorResponse(res, 404, error.message);
     }
+    sendErrorResponse(res, 500, 'Failed to fetch user profile.', { details: error.message });
+  }
 };
 
 const updateMyProfile = async (req, res) => {
-    try {
-        const userId = req.user.userId;
-        const updates = req.body;
-        // Basic validation: ensure only allowed fields are updated
-        const allowedUpdates = ['fullName', 'jobTitle', 'email', 'profilePictureUrl'];
-        const filteredUpdates = Object.keys(updates)
-            .filter(key => allowedUpdates.includes(key))
-            .reduce((obj, key) => {
-                obj[key] = updates[key];
-                return obj;
-            }, {});
+  try {
+    const userId = req.user.userId;
+    const updates = req.body;
+    const allowedUpdates = ['fullName', 'jobTitle', 'email', 'profilePictureUrl'];
+    const filteredUpdates = Object.keys(updates)
+      .filter(key => allowedUpdates.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = updates[key];
+        return obj;
+      }, {});
 
-        if (Object.keys(filteredUpdates).length === 0) {
-            return sendErrorResponse(res, 400, 'No valid fields provided for update.');
-        }
-
-        const updatedUser = await authService.updateMyProfile(userId, filteredUpdates);
-        res.status(200).json(updatedUser);
-    } catch (error) {
-        sendErrorResponse(res, 500, 'Failed to update user profile.', { details: error.message });
+    if (Object.keys(filteredUpdates).length === 0) {
+      return sendErrorResponse(res, 400, 'No valid fields provided for update.');
     }
+
+    const updatedUser = await authService.updateMyProfile(userId, filteredUpdates);
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    sendErrorResponse(res, 500, 'Failed to update user profile.', { details: error.message });
+  }
 };
 
 const uploadProfilePicture = async (req, res) => {
@@ -123,8 +107,7 @@ const uploadProfilePicture = async (req, res) => {
 
 module.exports = {
   register,
-  sendOtp,
-  verifyOtp,
+  login,
   getMyMemberships,
   getMyProfile,
   updateMyProfile,
