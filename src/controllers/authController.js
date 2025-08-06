@@ -42,7 +42,6 @@ const login = async (req, res) => {
   }
 };
 
-// שאר הפונקציות נשארות כפי שהן (לא דורשות שינוי)
 const getMyMemberships = async (req, res) => {
   try {
     const userId = req.user.userId;

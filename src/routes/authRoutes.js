@@ -1,14 +1,7 @@
-// src/routes/authRoutes.js
 const express = require('express');
 const authController = require('../controllers/authController');
-const authMiddleware = require('../middleware/authMiddleware'); // נבנה אותו בסעיף הבא
-const multer = require('multer'); // ייבוא חדש
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-
-
-
+const authMiddleware = require('../middleware/authMiddleware');
+const multer = require('multer');
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -26,12 +19,13 @@ const upload = multer({ storage: storage });
 
 const router = express.Router();
 
-
+// ראוטים ציבוריים (ללא אימות)
 router.post('/register', authController.register);
-router.post('/otp/send', authController.sendOtp);
-router.post('/otp/verify', authController.verifyOtp);
+router.post('/login', authController.login);
+router.post('/otp/send', authController.sendOtp);          // ודא שקיים ב-controller
+router.post('/otp/verify', authController.verifyOtp);      // ודא שקיים ב-controller
 
-// Private routes - require authentication
+// ראוטים פרטיים (דורשים אימות)
 router.get('/me/memberships', authMiddleware.authenticateToken, authController.getMyMemberships);
 router.get('/me', authMiddleware.authenticateToken, authController.getMyProfile);
 router.put('/me', authMiddleware.authenticateToken, authController.updateMyProfile);
@@ -42,29 +36,5 @@ router.post(
   upload.single('profilePicture'), // middleware לטיפול בקובץ בודד
   authController.uploadProfilePicture
 );
-
-router.post('/register', async (req, res) => {
-  const { email, password, fullName } = req.body;
-  if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return res.status(409).json({ message: 'Email already in use.' });
-
-  const hashed = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({ data: { email, password: hashed, fullName } });
-  res.status(201).json({ message: 'Registered!', user: { id: user.id, email: user.email } });
-});
-
-// התחברות עם אימייל וסיסמה
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) return res.status(401).json({ message: 'Invalid credentials.' });
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return res.status(401).json({ message: 'Invalid credentials.' });
-
-  const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
-  res.json({ token, user: { id: user.id, email: user.email, fullName: user.fullName } });
-});
 
 module.exports = router;
