@@ -20,9 +20,20 @@ const { startDeadlineScheduler } = require('./jobs/deadlineScheduler'); // יי�
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = [
+  "https://mypland.com",
+  "https://projectf-3gqj.onrender.com"
+];
+
 const io = new Server(server, {
   cors: {
-    origin: "https://projectf-3gqj.onrender.com", // אפשר להגביל לכתובת הספציפית של ה-frontend בייצור
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
   }
 });
