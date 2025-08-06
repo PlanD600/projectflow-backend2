@@ -1,4 +1,3 @@
-// src/server.js
 require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
@@ -25,20 +24,27 @@ const allowedOrigins = [
   "https://projectf-3gqj.onrender.com"
 ];
 
-const io = new Server(server, {
-  cors: {
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
-  }
-});
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Organization-Id'],
+};
+app.use(cors(corsOptions));
 
 // אתחול שירות ההתראות עם מופע ה-Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Organization-Id'],
+  }
+});
 notificationService.initNotifications(io); // חובה להפעיל זאת לפני כל שימוש ב-notificationService
 
 const prisma = new PrismaClient();
@@ -47,11 +53,6 @@ const PORT = process.env.PORT || 3000;
 // --- Middlewares ---
 // 1. הפעלת CORS - חייב להיות לפני הגדרת ה-routes
 //app.use(cors()); 
-const corsOptions = {
-    origin: 'https://mypland.com',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // כל השיטות הנדרשות
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Organization-Id'], // כל הכותרות הנדרשות
-};
 // 2. הפעלת JSON parser
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
@@ -68,8 +69,6 @@ app.get('/test-db', async (req, res) => {
   } catch (error) {
     console.error('Database connection error:', error);
     res.status(500).json({ message: 'Failed to connect to the database.', error: error.message });
-  } finally {
-    //
   }
 });
 
