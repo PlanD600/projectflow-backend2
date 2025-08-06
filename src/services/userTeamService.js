@@ -58,7 +58,7 @@ const getAllUserMembershipsInOrg = async (organizationId, { page = 1, limit = 25
       [sortBy]: sortOrder,
     },
     include: {
-      user: { select: { id: true, fullName: true, phone: true, email: true, profilePictureUrl: true, jobTitle: true } },
+      user: { select: { id: true, fullName: true, email: true, profilePictureUrl: true, jobTitle: true } },
       organization: { select: { id: true, name: true } }
     }
   });

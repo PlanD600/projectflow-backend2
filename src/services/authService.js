@@ -6,21 +6,28 @@ const path = require('path');
 
 const prisma = new PrismaClient();
 
-// הרשמה עם אימייל וסיסמה בלבד
+/**
+ * הרשמה עם אימייל, סיסמה ושם ארגון:
+ * - יוצר משתמש חדש
+ * - יוצר ארגון חדש
+ * - מוסיף את המשתמש כחבר בארגון (SUPER_ADMIN)
+ */
 const registerUserWithEmail = async (fullName, email, password, organizationName) => {
-  // בדוק אם המשתמש כבר קיים עם אימייל
+  // בדוק אם המשתמש כבר קיים עם אימייל זה
   let user = await prisma.user.findUnique({ where: { email } });
   if (user) {
     throw new Error('User with this email already exists.');
   }
-  // צור את הארגון והמשתמש החדש
   const hashedPassword = await bcrypt.hash(password, 10);
 
+  // יצירת משתמש, ארגון וחברות בטרנזקציה אחת
   const result = await prisma.$transaction(async (tx) => {
+    // צור ארגון חדש
     const organization = await tx.organization.create({
       data: { name: organizationName }
     });
 
+    // צור משתמש חדש
     user = await tx.user.create({
       data: {
         fullName,
@@ -29,6 +36,7 @@ const registerUserWithEmail = async (fullName, email, password, organizationName
       }
     });
 
+    // צור חברות (Membership) - המשתמש הוא SUPER_ADMIN בארגון החדש
     await tx.membership.create({
       data: {
         userId: user.id,
@@ -42,11 +50,15 @@ const registerUserWithEmail = async (fullName, email, password, organizationName
 
   return {
     message: 'Registration successful.',
-    user: { id: result.user.id, email: result.user.email }
+    user: { id: result.user.id, email: result.user.email },
+    organization: { id: result.organization.id, name: result.organization.name }
   };
 };
 
-// התחברות עם אימייל וסיסמה בלבד
+/**
+ * התחברות עם אימייל וסיסמה בלבד
+ * - מחזיר טוקן JWT, פרטי משתמש, והרשאות בכל הארגונים שלו.
+ */
 const loginWithEmail = async (email, password) => {
   const user = await prisma.user.findUnique({
     where: { email },
@@ -85,11 +97,9 @@ const loginWithEmail = async (email, password) => {
   };
 };
 
-// --- פונקציות טלפון/OTP הוסרו לחלוטין! ---
-// אם תרצה להחזיר בעתיד אפשר להוסיף, כרגע לא פעיל ולא מיוצא.
-
-// --- פרטי משתמש ומנויים ---
-
+/**
+ * מחזיר את כל החברות של המשתמש בארגונים
+ */
 const getMyMemberships = async (userId) => {
   const memberships = await prisma.membership.findMany({
     where: { userId },
@@ -102,6 +112,9 @@ const getMyMemberships = async (userId) => {
   }));
 };
 
+/**
+ * מחזיר פרופיל משתמש לפי מזהה
+ */
 const getMyProfile = async (userId) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -121,6 +134,9 @@ const getMyProfile = async (userId) => {
   return user;
 };
 
+/**
+ * עדכון פרטי משתמש
+ */
 const updateMyProfile = async (userId, updates) => {
   const updatedUser = await prisma.user.update({
     where: { id: userId },
@@ -138,6 +154,9 @@ const updateMyProfile = async (userId, updates) => {
   return updatedUser;
 };
 
+/**
+ * עדכון תמונת פרופיל ושמירה של הקובץ החדש
+ */
 const updateProfilePicture = async (userId, filePath) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -160,6 +179,7 @@ const updateProfilePicture = async (userId, filePath) => {
     },
   });
 
+  // מחיקת תמונה ישנה
   if (user && user.profilePictureUrl) {
     const oldFilePath = path.join(__dirname, '..', user.profilePictureUrl);
     if (fs.existsSync(oldFilePath)) {
@@ -177,7 +197,7 @@ const updateProfilePicture = async (userId, filePath) => {
 };
 
 module.exports = {
-  registerUserWithEmail,    // הרשמה עם אימייל וסיסמה בלבד
+  registerUserWithEmail,    // הרשמה עם אימייל וסיסמה בלבד ומימוש חברות בארגון
   loginWithEmail,           // התחברות עם אימייל וסיסמה בלבד
   getMyMemberships,
   getMyProfile,
