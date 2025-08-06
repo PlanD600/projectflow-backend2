@@ -3,37 +3,26 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/tokenUtils');
 const { generateOtp, sendOtp, verifyOtp } = require('../utils/otpUtils');
-const fs = require('fs'); // ייבוא חדש
-const path = require('path'); // ייבוא חדש
+const fs = require('fs');
+const path = require('path');
 
 const prisma = new PrismaClient();
 
-// זמני אחסון OTP (לצורך הדגמה בלבד - ביישום אמיתי השתמש במסד נתונים/Redis)
 const otpStore = {}; // { phone: { code: '...', expiresAt: Date } }
 
-/**
- * Registers a new user and creates their initial organization.
- * @param {string} fullName
- * @param {string} phone
- * @param {string} organizationName
- * @returns {Promise<object>} Message indicating success.
- */
 const registerUser = async (fullName, phone, organizationName) => {
-  // Check if user already exists
-  let user = await prisma.user.findUnique({ where: { phone } });
+  // === תיקון 1: ניקוי מספר הטלפון בתחילת הפונקציה ===
+  const formattedPhone = phone.replace(/\s/g, '');
+
+  // בדיקה אם משתמש כבר קיים עם המספר הנקי
+  let user = await prisma.user.findUnique({ where: { phone: formattedPhone } });
 
   if (user) {
-    // If user exists but is not part of an organization, handle accordingly.
-    // For simplicity, we'll return an error if phone already registered.
     throw new Error('User with this phone number already exists.');
   }
 
-  
-
-  // Create new organization and user within a transaction
-  // Transactions ensure atomicity: either all operations succeed or all fail.
   const result = await prisma.$transaction(async (tx) => {
-    organization = await tx.organization.create({
+    const organization = await tx.organization.create({
       data: {
         name: organizationName,
       },
@@ -42,67 +31,61 @@ const registerUser = async (fullName, phone, organizationName) => {
     user = await tx.user.create({
       data: {
         fullName,
-        phone,
-        // For simplicity, we assume an initial role for the first user
-        // In a real app, first user of an org would typically be ADMIN/SUPER_ADMIN
+        phone: formattedPhone, // === תיקון 2: שמירת המספר הנקי במסד הנתונים ===
       },
     });
 
-    // Create a membership for the new user in the new organization with ADMIN role
     await tx.membership.create({
       data: {
         userId: user.id,
         organizationId: organization.id,
-        role: 'SUPER_ADMIN', // The first user to register an organization is an ADMIN
+        role: 'SUPER_ADMIN',
       },
     });
 
     return { user, organization };
   });
 
-  // Generate and send OTP for immediate login
   const otpCode = generateOtp();
-  otpStore[phone] = { code: otpCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000) }; // OTP valid for 5 minutes
-  await sendOtp(phone, otpCode);
+  // === תיקון 3: שימוש במספר הנקי כמפתח ובשליחה ===
+  otpStore[formattedPhone] = { code: otpCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000) };
+  await sendOtp(formattedPhone, otpCode);
 
   return { message: 'Registration successful. Please verify OTP to log in.' };
 };
 
-/**
- * Sends an OTP to an existing user for login.
- * @param {string} phone - The user's phone number.
- * @returns {Promise<object>} Message indicating success.
- */
 const sendOtpForLogin = async (phone) => {
-  const user = await prisma.user.findUnique({ where: { phone } });
+  // === תיקון 1: ניקוי מספר הטלפון בתחילת הפונקציה ===
+  const formattedPhone = phone.replace(/\s/g, '');
+
+  // חיפוש משתמש עם המספר הנקי
+  const user = await prisma.user.findUnique({ where: { phone: formattedPhone } });
   if (!user) {
     throw new Error('אופס, נראה שעדיין לא הכרנו! בואו נתחיל - הירשמו עכשיו כדי להתחיל לנהל פרויקטים.');
   }
 
   const otpCode = generateOtp();
-  otpStore[phone] = { code: otpCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000) }; // OTP valid for 5 minutes
-  await sendOtp(phone, otpCode);
+  // === תיקון 2: שימוש במספר הנקי כמפתח ובשליחה ===
+  otpStore[formattedPhone] = { code: otpCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000) };
+  await sendOtp(formattedPhone, otpCode);
 
   return { message: 'OTP sent successfully.' };
 };
 
-/**
- * Verifies OTP and logs in the user, returning JWT and memberships.
- * @param {string} phone - The user's phone number.
- * @param {string} otpCode - The OTP code entered by the user.
- * @returns {Promise<object>} { token, user, memberships }
- */
 const verifyOtpAndLogin = async (phone, otpCode) => {
+  const formattedPhone = phone.replace(/\s/g, '');
+
   const user = await prisma.user.findUnique({
-    where: { phone },
-    include: { memberships: { include: { organization: true } } }, // Include memberships and their organizations
+    where: { phone: formattedPhone },
+    include: { memberships: { include: { organization: true } } },
   });
 
   if (!user) {
     throw new Error('User not found.');
   }
-
-  const storedOtpData = otpStore[phone];
+  
+  // כאן היה באג קטן, תיקנתי את שם המשתנה מ-storedOtpdData ל-storedOtpData
+  const storedOtpData = otpStore[formattedPhone];
   if (!storedOtpData || storedOtpData.expiresAt < new Date()) {
     throw new Error('OTP expired or not sent. Please request a new one.');
   }
@@ -111,10 +94,8 @@ const verifyOtpAndLogin = async (phone, otpCode) => {
     throw new Error('Invalid OTP code.');
   }
 
-  // Clear OTP after successful verification (important for security)
-  delete otpStore[phone];
+  delete otpStore[formattedPhone];
 
-  // Assuming user has at least one membership, pick the first for initial token context
   if (!user.memberships || user.memberships.length === 0) {
     throw new Error('User has no active memberships. Please contact support.');
   }
@@ -131,8 +112,6 @@ const verifyOtpAndLogin = async (phone, otpCode) => {
       email: user.email,
       profilePictureUrl: user.profilePictureUrl,
       jobTitle: user.jobTitle,
-      // Note: User role itself is not directly on the User model,
-      // but through memberships. For simplicity, we'll attach the role from the default membership.
       role: defaultMembership.role
     },
     memberships: user.memberships.map(m => ({
@@ -143,15 +122,10 @@ const verifyOtpAndLogin = async (phone, otpCode) => {
   };
 };
 
-/**
- * Fetches memberships for the authenticated user.
- * @param {string} userId - The ID of the authenticated user.
- * @returns {Promise<object[]>} List of memberships.
- */
 const getMyMemberships = async (userId) => {
   const memberships = await prisma.membership.findMany({
     where: { userId },
-    include: { organization: true }, // Include organization details
+    include: { organization: true },
   });
   return memberships.map(m => ({
     organizationId: m.organizationId,
@@ -160,11 +134,6 @@ const getMyMemberships = async (userId) => {
   }));
 };
 
-/**
- * Fetches profile of the currently authenticated user.
- * @param {string} userId - The ID of the authenticated user.
- * @returns {Promise<object>} User profile.
- */
 const getMyProfile = async (userId) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -185,12 +154,6 @@ const getMyProfile = async (userId) => {
   return user;
 };
 
-/**
- * Updates the profile of the authenticated user.
- * @param {string} userId - The ID of the authenticated user.
- * @param {object} updates - Fields to update (fullName, jobTitle, email, profilePictureUrl).
- * @returns {Promise<object>} The updated user profile.
- */
 const updateMyProfile = async (userId, updates) => {
   const updatedUser = await prisma.user.update({
     where: { id: userId },
@@ -209,53 +172,43 @@ const updateMyProfile = async (userId, updates) => {
   return updatedUser;
 };
 
-/**
- * Updates the profile picture URL of the authenticated user.
- * @param {string} userId - The ID of the authenticated user.
- * @param {string} filePath - The path where the new picture is stored.
- * @returns {Promise<object>} The updated user profile.
- */
 const updateProfilePicture = async (userId, filePath) => {
-    // 1. קבלת נתיב התמונה הנוכחית מהמסד
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { profilePictureUrl: true }
-    });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { profilePictureUrl: true }
+  });
 
-    // 2. עדכון נתיב התמונה החדש במסד הנתונים
-    const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: {
-            profilePictureUrl: `/uploads/${path.basename(filePath)}`, // שמירת הנתיב הציבורי במסד
-        },
-        select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            email: true,
-            profilePictureUrl: true,
-            jobTitle: true,
-            createdAt: true,
-            updatedAt: true
-        },
-    });
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      profilePictureUrl: `/uploads/${path.basename(filePath)}`,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      phone: true,
+      email: true,
+      profilePictureUrl: true,
+      jobTitle: true,
+      createdAt: true,
+      updatedAt: true
+    },
+  });
 
-    // 3. מחיקת הקובץ הישן אם קיים
-    if (user && user.profilePictureUrl) {
-        const oldFilePath = path.join(__dirname, '..', user.profilePictureUrl);
-        // לוודא שהקובץ קיים לפני הניסיון למחוק אותו
-        if (fs.existsSync(oldFilePath)) {
-            fs.unlink(oldFilePath, (err) => {
-                if (err) {
-                    console.error('Error deleting old profile picture:', err);
-                } else {
-                    console.log(`Old file ${oldFilePath} deleted successfully.`);
-                }
-            });
+  if (user && user.profilePictureUrl) {
+    const oldFilePath = path.join(__dirname, '..', user.profilePictureUrl);
+    if (fs.existsSync(oldFilePath)) {
+      fs.unlink(oldFilePath, (err) => {
+        if (err) {
+          console.error('Error deleting old profile picture:', err);
+        } else {
+          console.log(`Old file ${oldFilePath} deleted successfully.`);
         }
+      });
     }
+  }
 
-    return updatedUser;
+  return updatedUser;
 };
 
 module.exports = {
