@@ -6,6 +6,7 @@ const inviteUserSchema = Joi.object({
   email: Joi.string().email().required(),
   jobTitle: Joi.string().allow('', null),
   role: Joi.string().valid('SUPER_ADMIN', 'ADMIN', 'TEAM_LEADER', 'EMPLOYEE').required(),
+  password: Joi.string().min(6).required(), // <-- השורה החדשה והחשובה
 });
 
 const updateUserEmailSchema = Joi.object({
