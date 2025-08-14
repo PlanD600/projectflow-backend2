@@ -246,7 +246,6 @@ const updateUserEmail = async (targetUserId, organizationId, email, currentUserI
 };
 
 /* ---------- עריכת סיסמה למשתמש קיים ---------- */
-const bcrypt = require('bcrypt');
 const updateUserPassword = async (targetUserId, organizationId, newPassword, currentUserId, currentUserRole) => {
   if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
     throw new Error(translateError("Password must be at least 6 characters."));
