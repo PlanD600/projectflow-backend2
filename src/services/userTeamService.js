@@ -1,3 +1,4 @@
+const bcrypt = require('bcrypt'); // ודא ששורה זו קיימת בראש הקובץ
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateOtp, sendOtp } = require('../utils/otpUtils');
@@ -77,80 +78,83 @@ const getAllUserMembershipsInOrg = async (organizationId, { page = 1, limit = 25
  * Automatically sends an OTP to their phone.
  * @returns {Promise<object>} The newly created or updated user object (as a Membership).
  */
-const inviteUser = async (organizationId, { fullName, phone, jobTitle, email, role }) => {
-  if (!ROLE_HIERARCHY.hasOwnProperty(role)) {
-    throw new Error(translateError("Invalid role"));
-  }
-  if (!email || !isValidEmail(email)) {
-    throw new Error(translateError("Email format is invalid."));
-  }
-  // בדוק ייחודיות אימייל
-  let userByEmail = await prisma.user.findUnique({ where: { email } });
-  if (userByEmail) {
-    // אם קיים משתמש עם אותו אימייל – בדוק האם כבר חבר בארגון
-    const membership = await prisma.membership.findUnique({
-      where: { userId_organizationId: { userId: userByEmail.id, organizationId } }
-    });
-    if (membership) {
-      throw new Error(translateError("User is already a member of this organization."));
+const inviteUser = async (organizationId, { fullName, phone, jobTitle, email, role, password }) => {
+    // 1. ולידציה בסיסית
+    if (!ROLE_HIERARCHY.hasOwnProperty(role)) {
+        throw new Error("Invalid role");
     }
-    // אם לא חבר – הוסף לארגון
-    return await prisma.membership.create({
-      data: {
-        userId: userByEmail.id,
-        organizationId,
-        role,
-      },
-      include: { user: true, organization: true }
-    });
-  }
-
-  // ייתכן שיש משתמש עם אותו טלפון – בדוק לפי טלפון גם
-  let userByPhone = await prisma.user.findUnique({ where: { phone } });
-  if (userByPhone) {
-    const membership = await prisma.membership.findUnique({
-      where: { userId_organizationId: { userId: userByPhone.id, organizationId } }
-    });
-    if (membership) {
-      throw new Error(translateError("User is already a member of this organization."));
+    if (!email || !isValidEmail(email)) {
+        throw new Error("Email format is invalid.");
     }
-    // אם לא חבר – הוסף לארגון
-    return await prisma.membership.create({
-      data: {
-        userId: userByPhone.id,
-        organizationId,
-        role,
-      },
-      include: { user: true, organization: true }
-    });
-  }
 
-  // יצירת משתמש חדש
-  const membership = await prisma.$transaction(async (tx) => {
-    const newUser = await tx.user.create({
-      data: {
-        fullName,
-        phone,
-        jobTitle,
-        email,
-      },
-    });
-    const newMembership = await tx.membership.create({
-      data: {
-        userId: newUser.id,
-        organizationId: organizationId,
-        role: role,
-      },
-      include: { user: true, organization: true }
-    });
-    return newMembership;
-  });
+    // 2. בדיקה אם משתמש עם האימייל הזה כבר קיים
+    const existingUser = await prisma.user.findUnique({ where: { email } });
 
-  // שליחת OTP
-  const otpCode = generateOtp();
-  await sendOtp(phone, otpCode);
+    if (existingUser) {
+        // --- מקרה א': המשתמש קיים במערכת ---
+        
+        // בודקים אם הוא כבר חבר בארגון הנוכחי
+        const membership = await prisma.membership.findUnique({
+            where: { userId_organizationId: { userId: existingUser.id, organizationId } }
+        });
 
-  return membership;
+        if (membership) {
+            // אם כן, זורקים שגיאה שהוא כבר חבר
+            throw new Error("User is already a member of this organization.");
+        } else {
+            // אם לא, פשוט מוסיפים את המשתמש הקיים לארגון.
+            // חשוב: אנחנו לא נוגעים בסיסמה שלו.
+            return prisma.membership.create({
+                data: {
+                    userId: existingUser.id,
+                    organizationId,
+                    role,
+                },
+                include: { user: true, organization: true }
+            });
+        }
+    } else {
+        // --- מקרה ב': המשתמש חדש לגמרי ---
+
+        // בודקים שהסיסמה תקינה
+        if (!password || password.length < 6) {
+            throw new Error("Password must be at least 6 characters.");
+        }
+
+        // בודקים שמספר הטלפון לא משויך למשתמש אחר
+        const userByPhone = await prisma.user.findUnique({ where: { phone } });
+        if (userByPhone) {
+            throw new Error("Phone number is already in use.");
+        }
+
+        // מצפינים את הסיסמה לפני השמירה
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // יוצרים את המשתמש והחברות שלו בארגון בתוך טרנזקציה אחת (למניעת חצאי פעולות)
+        const newMembership = await prisma.$transaction(async (tx) => {
+            const newUser = await tx.user.create({
+                data: {
+                    fullName,
+                    phone,
+                    jobTitle,
+                    email,
+                    password: hashedPassword, // שמירת הסיסמה המוצפנת
+                },
+            });
+            return tx.membership.create({
+                data: {
+                    userId: newUser.id,
+                    organizationId,
+                    role,
+                },
+                include: { user: true, organization: true }
+            });
+        });
+
+        // אין יותר צורך ב-OTP, כי קבענו סיסמה
+        return newMembership;
+    }
 };
 
 /**

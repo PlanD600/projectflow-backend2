@@ -20,6 +20,7 @@ router.get(
 router.post(
   '/users/invite',
   authorizeRoles(['ADMIN', 'SUPER_ADMIN']),
+  validateRequest(userValidator.inviteUserSchema), // ודא שקובץ הולידציה קיים ותקין
   userTeamController.inviteUser
 );
 
@@ -77,12 +78,6 @@ router.delete(
   userTeamController.deleteTeam
 );
 
-router.post(
-  '/users/invite',
-  authorizeRoles(['ADMIN', 'SUPER_ADMIN']),
-  validateRequest(userValidator.inviteUserSchema),
-  userTeamController.inviteUser
-);
 
 // עדכון אימייל:
 router.put(

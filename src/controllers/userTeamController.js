@@ -53,28 +53,37 @@ const getUsers = async (req, res) => {
 };
 
 const inviteUser = async (req, res) => {
-  try {
-    const organizationId = req.organizationId;
-    const { fullName, phone, jobTitle, email, role } = req.body;
+    try {
+        const organizationId = req.organizationId;
+        // 1. הוסף את password לרשימת המשתנים מה-body
+        const { fullName, phone, jobTitle, email, role, password } = req.body; 
 
-    if (!fullName || !phone || !role || jobTitle === undefined || !email) {
-      return sendErrorResponse(res, 400, translateError("Full name, phone, job title, email, and role are required for invitation."));
-    }
+        // הולידציה שלך כבר מטפלת בשדות חסרים, אבל נוודא שהסיסמה מועברת
+        if (!fullName || !phone || !role || jobTitle === undefined || !email || !password) {
+            return sendErrorResponse(res, 400, translateError("Full name, phone, job title, email, and role are required for invitation."));
+        }
 
-    const newMembership = await userTeamService.inviteUser(organizationId, { fullName, phone, jobTitle, email, role });
-    res.status(201).json(newMembership);
-  } catch (error) {
-    if (error.message.includes('User is already a member')) {
-      return sendErrorResponse(res, 400, translateError("User is already a member"));
+        // 2. העבר את password לאובייקט שנשלח לסרוויס
+        const newMembership = await userTeamService.inviteUser(organizationId, { fullName, phone, jobTitle, email, role, password });
+        res.status(201).json(newMembership);
+    } catch (error) {
+        // פיצול תנאי השגיאה כדי לתת הודעה מדויקת
+        if (error.message.includes('User is already a member')) {
+            return sendErrorResponse(res, 409, translateError("User is already a member")); // 409 Conflict
+        }
+        if (error.message.includes('Email format is invalid')) {
+            return sendErrorResponse(res, 400, "האימייל שהוזן אינו תקין.");
+        }
+        if (error.message.includes('Email is already in use')) {
+            return sendErrorResponse(res, 409, "משתמש עם אימייל זה כבר קיים במערכת."); // 409 Conflict
+        }
+        if (error.message.includes('Invalid role')) {
+            return sendErrorResponse(res, 400, translateError("Invalid role"));
+        }
+        
+        // הודעת שגיאה כללית לכל מקרה אחר
+        sendErrorResponse(res, 500, translateError("Failed to invite user."), { details: error.message });
     }
-    if (error.message.includes('Invalid role')) {
-      return sendErrorResponse(res, 400, translateError("Invalid role"));
-    }
-    if (error.message.includes('email')) {
-      return sendErrorResponse(res, 400, translateError("email"));
-    }
-    sendErrorResponse(res, 500, translateError("Failed to invite user."), { details: error.message });
-  }
 };
 
 const updateUserRole = async (req, res) => {
