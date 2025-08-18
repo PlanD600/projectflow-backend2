@@ -84,7 +84,12 @@ const calculateNetAmount = (amount, vatPercentage, deductions) => {
  * @param {string} [projectId] - Optional project ID to filter by. 'all' means no project filter.
  * @returns {Promise<object>} FinanceSummary object.
  */
-const getFinanceSummary = async (organizationId, projectId) => {
+const getFinanceSummary = async (organizationId, userRole, projectId) => {
+    // 💡 תיקון: אם המשתמש אינו אדמין או סופר אדמין, זרוק שגיאת הרשאה
+    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+        throw new Error('You do not have permission to view financial data.');
+    }
+    
     // תנאי סינון עבור financeEntry
     const financeEntryWhereClause = {
         organizationId: organizationId,
@@ -148,7 +153,12 @@ const getFinanceSummary = async (organizationId, projectId) => {
  * @param {string} options.sortOrder - Sort order ('asc' or 'desc').
  * @returns {Promise<object>} Paginated list of finance entries.
  */
-const getFinanceEntries = async (organizationId, { projectId, page = 1, limit = 25, sortBy = 'date', sortOrder = 'desc' }) => {
+const getFinanceEntries = async (organizationId, userRole, { projectId, page = 1, limit = 25, sortBy = 'date', sortOrder = 'desc' }) => {
+    // 💡 תיקון: אם המשתמש אינו אדמין או סופר אדמין, זרוק שגיאת הרשאה
+    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+        throw new Error('You do not have permission to view financial data.');
+    }
+
     const offset = (page - 1) * limit;
 
     const whereClause = {

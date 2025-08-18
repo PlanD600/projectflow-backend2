@@ -268,18 +268,35 @@ const updateUserPassword = async (targetUserId, organizationId, newPassword, cur
 };
 
 /* --- צוותים --- */
-const getAllTeams = async (organizationId, { page = 1, limit = 25, sortBy = 'createdAt', sortOrder = 'desc' }) => {
-  const offset = (page - 1) * limit;
-  const teams = await prisma.team.findMany({
-    where: { organizationId },
-    skip: offset,
-    take: limit,
-    orderBy: { [sortBy]: sortOrder },
-    include: {
-      teamLeads: { include: { user: { select: { id: true, fullName: true, email: true, profilePictureUrl: true, jobTitle: true } } } },
-      teamMembers: { include: { user: { select: { id: true, fullName: true, email: true, profilePictureUrl: true, jobTitle: true } } } }
+const getAllTeams = async (organizationId, userId, userRole, { page = 1, limit = 25, sortBy = 'createdAt', sortOrder = 'desc' }) => {
+    const offset = (page - 1) * limit;
+
+    let whereClause = {
+        organizationId: organizationId,
+    };
+
+    // 💡 תיקון: הוספת לוגיקת הרשאות וסינון
+    if (userRole === 'EMPLOYEE' || userRole === 'TEAM_LEADER') {
+        whereClause.OR = [
+            // צוותים שבהם המשתמש הוא ראש צוות
+            { teamLeads: { some: { userId: userId } } },
+            // צוותים שבהם המשתמש הוא חבר צוות
+            { teamMembers: { some: { userId: userId } } },
+        ];
     }
-  });
+
+    const teams = await prisma.team.findMany({
+        where: whereClause,
+        skip: offset,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+            teamLeads: { include: { user: true } },
+            teamMembers: { include: { user: true } }
+        }
+    });
+
+
   const formattedTeams = teams.map(team => ({
     ...team,
     leads: team.teamLeads.map(tl => tl.user),

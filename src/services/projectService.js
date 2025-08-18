@@ -18,16 +18,19 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
     try {
         const offset = (page - 1) * limit;
 
+        // 💡 שלב 1: הגדרת תנאי הסינון הבסיסיים. אלה חלים על כל התפקידים.
         let whereClause = {
             organizationId: organizationId,
             isArchived: isArchived,
         };
 
-        if (userRole === 'EMPLOYEE') {
+        // 💡 שלב 2: הוספת לוגיקת סינון לפי תפקיד המשתמש.
+        if (userRole === 'TEAM_MANAGER' || userRole === 'EMPLOYEE') {
+            // אם המשתמש הוא מנהל צוות או עובד, סנן את הפרויקטים שהוא משויך אליהם
             whereClause = {
                 ...whereClause,
                 OR: [
-                    // פרויקטים שהמשתמש הוא ראש צוות בהם.
+                    // אפשרות 1: סינון לפי פרויקטים שבהם המשתמש הוא ראש צוות
                     {
                         projectTeamLeads: {
                             some: {
@@ -35,7 +38,7 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
                             },
                         },
                     },
-                    // פרויקטים המשויכים לצוותים שבהם המשתמש חבר.
+                    // אפשרות 2: סינון לפי פרויקטים שמשויכים לצוותים שבהם המשתמש חבר
                     {
                         teams: {
                             some: {
@@ -50,7 +53,10 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
                 ],
             };
         }
+        // לתפקידי ADMIN ו-SUPER_ADMIN אין צורך בסינון נוסף,
+        // כיוון שהם צריכים לראות את כל הפרויקטים בארגון.
 
+        // 💡 שלב 3: ביצוע הקוואריי לבסיס הנתונים עם תנאי הסינון הנכונים.
         const projects = await prisma.project.findMany({
             where: whereClause,
             skip: offset,
@@ -59,83 +65,18 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
                 [sortBy]: sortOrder,
             },
             include: {
+                // טעינת שדות נוספים הדרושים להצגה בצד הלקוח
                 monthlyBudgets: true,
                 tasks: {
-                    select: {
-                        id: true,
-                        title: true,
-                        startDate: true,
-                        endDate: true,
-                        status: true,
-                        color: true,
-                        displayOrder: true,
-                        expense: true,
-                        assignees: {
-                            select: {
-                                user: {
-                                    select: { id: true, fullName: true }
-                                }
-                            }
-                        }
-                    },
-                    orderBy: {
-                        displayOrder: 'asc'
-                    }
+                    select: { status: true },
                 },
-                // טעינת הצוותים הקשורים לפרויקט
-                teams: {
-                    include: {
-                        teamLeads: {
-                            select: {
-                                user: {
-                                    select: { id: true, fullName: true, email: true }
-                                }
-                            }
-                        },
-                        teamMembers: {
-                             select: {
-                                user: {
-                                    select: { id: true, fullName: true, email: true }
-                                }
-                             }
-                        }
-                    }
-                },
-                // טעינת ראשי הצוותים של הפרויקט
                 projectTeamLeads: {
-                    select: {
-                        user: {
-                            select: {
-                                id: true,
-                                fullName: true,
-                                email: true,
-                                profilePictureUrl: true,
-                                jobTitle: true,
-                            }
-                        }
-                    }
+                    select: { user: true }
                 },
-                financeEntries: true
+                teams: {
+                    select: { id: true, name: true }
+                },
             },
-        });
-
-        const formattedProjects = projects.map(project => {
-            const formattedTasks = (project.tasks || []).map(task => ({
-                ...task,
-                assignees: task.assignees.map(a => a.user)
-            }));
-
-            // הפרדה ברורה בין ראשי הצוותים של הפרויקט לבין הצוותים שלו.
-            const projectLeads = (project.projectTeamLeads || []).map(ptl => ptl.user);
-            const associatedTeams = project.teams || [];
-
-            return {
-                ...project,
-                tasks: formattedTasks,
-                teamLeads: projectLeads, // רשימת ראשי הצוותים של הפרויקט
-                teams: associatedTeams,  // רשימת הצוותים של הפרויקט
-                projectTeamLeads: undefined, // הסרת השדה הישן כדי לשמור על מבנה נתונים נקי.
-            };
         });
 
         const totalProjects = await prisma.project.count({
@@ -144,10 +85,9 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
 
         const totalPages = Math.ceil(totalProjects / limit);
 
-        console.log("Formatted Projects returned from server:", JSON.stringify(formattedProjects[0], null, 2));
-
+        // 💡 שלב 4: החזרת הנתונים המעובדים
         return {
-            data: formattedProjects,
+            data: projects,
             totalItems: totalProjects,
             totalPages,
             currentPage: page,
