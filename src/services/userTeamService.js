@@ -119,13 +119,7 @@ const inviteUser = async (organizationId, { fullName, phone, jobTitle, email, ro
         // בודקים שהסיסמה תקינה
         if (!password || password.length < 6) {
             throw new Error("Password must be at least 6 characters.");
-        }
-
-        // בודקים שמספר הטלפון לא משויך למשתמש אחר
-        const userByPhone = await prisma.user.findUnique({ where: { phone } });
-        if (userByPhone) {
-            throw new Error("Phone number is already in use.");
-        }
+        }        
 
         // מצפינים את הסיסמה לפני השמירה
         const salt = await bcrypt.genSalt(10);
