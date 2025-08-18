@@ -59,25 +59,30 @@ const getAllUserMembershipsInOrg = async (organizationId, userId, userRole, { pa
     organizationId: organizationId,
   };
 
-  if (userRole === 'TEAM_LEADER' || userRole === 'EMPLOYEE') {
-    // If the user is a team leader or employee, they can only see themselves and their team members.
-    // We can fetch all users in the organization and filter them in the application layer
-    // to avoid a complex Prisma query. For simplicity, we'll implement a basic filter here.
-    // NOTE: This is a simpler approach that might not be fully accurate to your specific business logic.
-    // A more robust solution might require a different database query.
-    whereClause.OR = [
-      { userId: userId }, // Can see themselves
-      { 
-        // Can see other team members
-        teams: {
-          some: {
-            teamMembers: {
-              some: { userId: userId }
-            }
-          }
-        }
-      }
-    ];
+  // If the user is an employee, they can only see themselves.
+  // If the user is a team leader, they can see their team members and themselves.
+  // Admins and Super Admins see everyone.
+  if (userRole === 'EMPLOYEE') {
+    whereClause.userId = userId;
+  } else if (userRole === 'TEAM_LEADER') {
+    const userTeams = await prisma.team.findMany({
+      where: {
+        organizationId: organizationId,
+        teamLeads: { some: { userId: userId } }
+      },
+      select: { id: true }
+    });
+    const teamIds = userTeams.map(team => team.id);
+
+    const teamMemberships = await prisma.teamMember.findMany({
+      where: { teamId: { in: teamIds } },
+      select: { userId: true }
+    });
+    const teamMemberIds = teamMemberships.map(member => member.userId);
+    // A team leader can see themselves and their team members
+    const allowedUserIds = [...new Set([userId, ...teamMemberIds])];
+
+    whereClause.userId = { in: allowedUserIds };
   }
   // Admins and Super Admins get all memberships (no extra where clause)
 
