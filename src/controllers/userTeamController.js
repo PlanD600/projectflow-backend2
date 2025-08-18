@@ -42,14 +42,23 @@ function translateError(message) {
 
 /* --- Users --- */
 const getUsers = async (req, res) => {
-  try {
-    const organizationId = req.organizationId;
-    const { page, limit, sortBy, sortOrder } = req.query;
-    const users = await userTeamService.getAllUserMembershipsInOrg(organizationId, { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder });
-    res.status(200).json(users);
-  } catch (error) {
-    sendErrorResponse(res, 500, translateError("Failed to retrieve user memberships."), { details: error.message });
-  }
+  try {
+    const organizationId = req.organizationId;
+    // 💡 תיקון: הוסף את userId ו-userRole מתוך ה-request
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+    const { page, limit, sortBy, sortOrder } = req.query;
+    
+    const users = await userTeamService.getAllUserMembershipsInOrg(
+      organizationId, 
+      userId,
+      userRole,
+      { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder }
+    );
+    res.status(200).json(users);
+  } catch (error) {
+    sendErrorResponse(res, 500, translateError("Failed to retrieve user memberships."), { details: error.message });
+  }
 };
 
 const inviteUser = async (req, res) => {
@@ -200,15 +209,23 @@ const updateUserPassword = async (req, res) => {
 
 /* --- Teams --- */
 const getTeams = async (req, res) => {
-  try {
-    const organizationId = req.organizationId;
-    const { page, limit, sortBy, sortOrder } = req.query;
+  try {
+    const organizationId = req.organizationId;
+    // 💡 תיקון: הוסף את userId ו-userRole מתוך ה-request
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+    const { page, limit, sortBy, sortOrder } = req.query;
 
-    const teams = await userTeamService.getAllTeams(organizationId, { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder });
-    res.status(200).json(teams);
-  } catch (error) {
-    sendErrorResponse(res, 500, translateError("Failed to retrieve teams."), { details: error.message });
-  }
+    const teams = await userTeamService.getAllTeams(
+      organizationId,
+      userId,
+      userRole,
+      { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder }
+    );
+    res.status(200).json(teams);
+  } catch (error) {
+    sendErrorResponse(res, 500, translateError("Failed to retrieve teams."), { details: error.message });
+  }
 };
 
 const createTeam = async (req, res) => {
