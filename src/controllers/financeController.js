@@ -2,14 +2,18 @@
 const financeService = require('../services/financeService');
 const { sendErrorResponse } = require('../utils/errorUtils');
 
-// (הפונקציות getSummary, getEntries, ו-createEntry שלך, כפי שכתבת אותן)
 const getSummary = async (req, res) => {
   try {
     const organizationId = req.organizationId;
+    const userRole = req.user.role; // 💡 קבלת התפקיד מה-token
     const { projectId } = req.query;
-    const summary = await financeService.getFinanceSummary(organizationId, projectId);
+
+    const summary = await financeService.getFinanceSummary(organizationId, userRole, projectId); // 💡 העברת התפקיד
     res.status(200).json(summary);
   } catch (error) {
+    if (error.message.includes('permission')) {
+      return sendErrorResponse(res, 403, error.message); // 💡 שינוי ל-403 Forbidden
+    }
     if (error.message.includes('Project not found')) {
       return sendErrorResponse(res, 404, error.message);
     }
@@ -20,21 +24,21 @@ const getSummary = async (req, res) => {
 const getEntries = async (req, res) => {
   try {
     const organizationId = req.organizationId;
-    const { projectId } = req.query;
-    const page = req.query.page ? parseInt(req.query.page) : undefined;
-    const limit = req.query.limit ? parseInt(req.query.limit) : undefined;
-    const sortBy = req.query.sortBy;
-    const sortOrder = req.query.sortOrder;
+    const userRole = req.user.role; // 💡 קבלת התפקיד מה-token
+    const { projectId, page, limit, sortBy, sortOrder } = req.query;
 
-    const entries = await financeService.getFinanceEntries(organizationId, {
+    const entries = await financeService.getFinanceEntries(organizationId, userRole, { // 💡 העברת התפקיד
       projectId,
-      page,
-      limit,
+      page: page ? parseInt(page) : undefined,
+      limit: limit ? parseInt(limit) : undefined,
       sortBy,
       sortOrder
     });
     res.status(200).json(entries);
   } catch (error) {
+    if (error.message.includes('permission')) {
+        return sendErrorResponse(res, 403, error.message); // 💡 שינוי ל-403 Forbidden
+    }
     if (error.message.includes('Project not found')) {
       return sendErrorResponse(res, 404, error.message);
     }
@@ -69,7 +73,6 @@ const createEntry = async (req, res) => {
   }
 };
 
-// 💡 פונקציה חדשה לעדכון רשומת כספים
 const updateEntry = async (req, res) => {
   try {
     const { entryId } = req.params;
@@ -86,7 +89,6 @@ const updateEntry = async (req, res) => {
   }
 };
 
-// 💡 פונקציה חדשה למחיקת רשומת כספים
 const deleteEntry = async (req, res) => {
   try {
     const { entryId } = req.params;
@@ -102,7 +104,6 @@ const deleteEntry = async (req, res) => {
   }
 };
 
-// 💡 פונקציה חדשה לאיפוס כספים של פרויקט (כפי שבנינו קודם)
 const resetProjectFinances = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -117,7 +118,6 @@ const resetProjectFinances = async (req, res) => {
   }
 };
 
-// 💡 פונקציה חדשה לשחזור כספים של פרויקט
 const restoreProjectFinances = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -134,28 +134,22 @@ const restoreProjectFinances = async (req, res) => {
   }
 };
 
-// 💡 פונקציה חדשה ליצירת PDF
 const generateFinancePDF = async (req, res) => {
     try {
         const organizationId = req.organizationId;
         const { projectId } = req.query;
         
-        // קריאה לפונקציית השירות החדשה
         const pdfBuffer = await financeService.generateFinancePDF(organizationId, projectId);
         
-        // הגדרת כותרות התגובה כדי שהדפדפן ידע שמדובר בקובץ PDF
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="finance-report-${new Date().toISOString()}.pdf"`);
         
-        // שליחת הקובץ
         res.send(pdfBuffer);
     } catch (error) {
         console.error('Failed to generate finance PDF:', error);
         sendErrorResponse(res, 500, 'Failed to generate finance PDF.', { details: error.message });
     }
 };
-
-
 
 module.exports = {
   getSummary,

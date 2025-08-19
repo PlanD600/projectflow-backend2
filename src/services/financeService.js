@@ -7,14 +7,13 @@ const PDFDocumentWithTables = require('pdfkit-table');
 
 const prisma = new PrismaClient();
 
-// 💡 פונקציית RTL משופרת ומוגנת
+// פונקציית RTL משופרת ומוגנת
 const rtl = (text) => {
-    // 💡 לוודא שהטקסט הוא מחרוזת לפני עיבוד, אחרת להחזיר מחרוזת ריקה.
     const safeText = text ? String(text) : '';
     return getBidiString(safeText, { dir: 'rtl', unicode: true });
 };
 
-// 💡 פונקציות עזר להבאת נתונים מהמסד - נשארות כפי שהן
+// פונקציות עזר להבאת נתונים מהמסד
 const getOrganizationName = async (organizationId) => {
     const org = await prisma.organization.findUnique({
         where: { id: organizationId },
@@ -31,7 +30,6 @@ const getProjectName = async (projectId) => {
     });
     return project ? project.title : 'שם פרויקט לא ידוע';
 };
-
 
 const getDetailedFinanceEntries = async (organizationId, projectId) => {
     const findOptions = {
@@ -69,7 +67,8 @@ const getDetailedFinanceEntries = async (organizationId, projectId) => {
 
     return formattedEntries;
 };
-// 💡 פונקציית עזר לחישוב סכום נטו
+
+// פונקציית עזר לחישוב סכום נטו
 const calculateNetAmount = (amount, vatPercentage, deductions) => {
     const vatAmount = amount * (vatPercentage / 100 || 0);
     const totalDeductions = (deductions || 0) + vatAmount;
@@ -81,6 +80,7 @@ const calculateNetAmount = (amount, vatPercentage, deductions) => {
  * Retrieves finance summary (total income, expenses, balance, and total project budget)
  * for an organization, optionally filtered by project.
  * @param {string} organizationId - The ID of the current organization.
+ * @param {string} userRole - The role of the user performing the action.
  * @param {string} [projectId] - Optional project ID to filter by. 'all' means no project filter.
  * @returns {Promise<object>} FinanceSummary object.
  */
@@ -90,7 +90,6 @@ const getFinanceSummary = async (organizationId, userRole, projectId) => {
         throw new Error('You do not have permission to view financial data.');
     }
     
-    // תנאי סינון עבור financeEntry
     const financeEntryWhereClause = {
         organizationId: organizationId,
     };
@@ -98,7 +97,6 @@ const getFinanceSummary = async (organizationId, userRole, projectId) => {
         financeEntryWhereClause.projectId = projectId;
     }
 
-    // חישוב סך ההכנסות וההוצאות בפועל (עכשיו על בסיס סכום הנטו)
     const incomeAggregate = await prisma.financeEntry.aggregate({
         _sum: { netAmount: true },
         where: { ...financeEntryWhereClause, type: 'INCOME' },
@@ -113,7 +111,6 @@ const getFinanceSummary = async (organizationId, userRole, projectId) => {
     const totalExpensesAmount = expenseAggregate._sum.netAmount || 0;
     const balance = totalIncomeAmount - totalExpensesAmount;
 
-    // חישוב סך תקציבי הפרויקטים ממודל MonthlyBudget
     const monthlyBudgetWhereClause = {};
     if (projectId && projectId !== 'all') {
         monthlyBudgetWhereClause.projectId = projectId;
@@ -145,12 +142,8 @@ const getFinanceSummary = async (organizationId, userRole, projectId) => {
  * Retrieves a list of all financial entries for an organization,
  * optionally filtered by project, with pagination and sorting.
  * @param {string} organizationId - The ID of the current organization.
+ * @param {string} userRole - The role of the user performing the action.
  * @param {object} options - Pagination and sorting options.
- * @param {string} [options.projectId] - Optional project ID to filter by.
- * @param {number} options.page - Current page number.
- * @param {number} options.limit - Number of items per page.
- * @param {string} options.sortBy - Field to sort by.
- * @param {string} options.sortOrder - Sort order ('asc' or 'desc').
  * @returns {Promise<object>} Paginated list of finance entries.
  */
 const getFinanceEntries = async (organizationId, userRole, { projectId, page = 1, limit = 25, sortBy = 'date', sortOrder = 'desc' }) => {
@@ -160,7 +153,6 @@ const getFinanceEntries = async (organizationId, userRole, { projectId, page = 1
     }
 
     const offset = (page - 1) * limit;
-
     const whereClause = {
         organizationId: organizationId,
     };
@@ -211,18 +203,8 @@ const getFinanceEntries = async (organizationId, userRole, { projectId, page = 1
 
 /**
  * Adds a new income or expense entry.
- * @param {string} organizationId - The ID of the current organization.
- * @param {object} entryData - Data for the new finance entry.
- * @param {'INCOME' | 'EXPENSE'} entryData.type
- * @param {number} entryData.amount
- * @param {string} entryData.description
- * @param {string} entryData.date - YYYY-MM-DD
- * @param {string} [entryData.projectId]
- * @param {string} [entryData.taskId]
- * @param {number} [entryData.vatPercentage]
- * @param {number} [entryData.deductions]
- * @param {string} [entryData.status]
- * @param {string} [entryData.notes]
+ * @param {string} organizationId
+ * @param {object} entryData
  * @returns {Promise<object>} The newly created finance entry.
  */
 const createFinanceEntry = async (organizationId, { type, amount, description, date, projectId, taskId, vatPercentage, deductions, status, notes }) => {
@@ -250,7 +232,6 @@ const createFinanceEntry = async (organizationId, { type, amount, description, d
         }
     }
 
-    // 💡 חישוב סכום נטו
     const netAmount = calculateNetAmount(amount, vatPercentage, deductions);
 
     const newEntry = await prisma.financeEntry.create({
@@ -266,7 +247,7 @@ const createFinanceEntry = async (organizationId, { type, amount, description, d
             deductions,
             status,
             notes,
-            netAmount, // הוספת הסכום המחושב
+            netAmount,
         },
         include: {
             project: {
@@ -284,12 +265,11 @@ const createFinanceEntry = async (organizationId, { type, amount, description, d
     return formattedEntry;
 };
 
-// 💡 פונקציות חדשות
 /**
  * Updates an existing finance entry.
- * @param {string} entryId - The ID of the entry to update.
- * @param {string} organizationId - The ID of the current organization.
- * @param {object} updateData - Data to update the finance entry.
+ * @param {string} entryId
+ * @param {string} organizationId
+ * @param {object} updateData
  * @returns {Promise<object>} The updated finance entry.
  */
 const updateFinanceEntry = async (entryId, organizationId, updateData) => {
@@ -305,26 +285,21 @@ const updateFinanceEntry = async (entryId, organizationId, updateData) => {
         throw new Error('Cannot change project association of a finance entry.');
     }
 
-    // יצירת אובייקט לעדכון
     const dataToUpdate = { ...updateData };
 
-    // בדיקה האם צריך לחשב מחדש את הסכום נטו
     const shouldRecalculateNet =
         dataToUpdate.amount !== undefined ||
         dataToUpdate.vatPercentage !== undefined ||
         dataToUpdate.deductions !== undefined;
 
     if (shouldRecalculateNet) {
-        // שימוש בנתונים הקיימים אם לא נשלחו נתונים חדשים
         const finalAmount = dataToUpdate.amount !== undefined ? dataToUpdate.amount : existingEntry.amount;
         const finalVat = dataToUpdate.vatPercentage !== undefined ? dataToUpdate.vatPercentage : existingEntry.vatPercentage;
         const finalDeductions = dataToUpdate.deductions !== undefined ? dataToUpdate.deductions : existingEntry.deductions;
 
-        // חישוב נטו ועדכון הנתונים
         dataToUpdate.netAmount = calculateNetAmount(finalAmount, finalVat, finalDeductions);
     }
 
-    // עדכון הרשומה
     const updatedEntry = await prisma.financeEntry.update({
         where: { id: entryId },
         data: {
@@ -349,8 +324,8 @@ const updateFinanceEntry = async (entryId, organizationId, updateData) => {
 
 /**
  * Deletes a finance entry.
- * @param {string} entryId - The ID of the entry to delete.
- * @param {string} organizationId - The ID of the current organization.
+ * @param {string} entryId
+ * @param {string} organizationId
  * @returns {Promise<void>}
  */
 const deleteFinanceEntry = async (entryId, organizationId) => {
@@ -368,8 +343,8 @@ const deleteFinanceEntry = async (entryId, organizationId) => {
 
 /**
  * Resets all monthly budgets and finance entries for a specific project.
- * @param {string} organizationId - The ID of the current organization.
- * @param {string} projectId - The ID of the project to reset.
+ * @param {string} organizationId
+ * @param {string} projectId
  * @returns {Promise<void>}
  */
 const resetProjectFinances = async (organizationId, projectId) => {
@@ -386,13 +361,11 @@ const resetProjectFinances = async (organizationId, projectId) => {
     ]);
 };
 
-
-
 /**
  * Restores project finances by creating a new monthly budget from a finance entry.
- * @param {string} organizationId - The ID of the current organization.
- * @param {string} projectId - The ID of the project.
- * @param {string} entryId - The ID of the finance entry to use for restoration.
+ * @param {string} organizationId
+ * @param {string} projectId
+ * @param {string} entryId
  * @returns {Promise<object>} The restored monthly budget.
  */
 const restoreProjectFinances = async (organizationId, projectId, entryId) => {
@@ -410,7 +383,6 @@ const restoreProjectFinances = async (organizationId, projectId, entryId) => {
         throw new Error('Finance entry not found or does not belong to this organization.');
     }
 
-    // מוחק את התקציבים הקיימים ויוצר חדש על בסיס הרשומה
     await prisma.monthlyBudget.deleteMany({ where: { projectId: projectId } });
 
     if (entry.type === 'INCOME') {
@@ -440,27 +412,25 @@ const restoreProjectFinances = async (organizationId, projectId, entryId) => {
     return await prisma.monthlyBudget.findMany({ where: { projectId: projectId } });
 };
 
-
-
-
-
-// פונקציה לייצוא PDF - נגדיר אותה כפונקציית דמה
+/**
+ * Generates a finance report PDF.
+ * @param {string} organizationId
+ * @param {string} projectId
+ * @returns {Promise<Buffer>} The PDF buffer.
+ */
 const generateFinancePDF = async (organizationId, projectId) => {
     try {
-        // 1. איסוף והכנת הנתונים
-        const summary = await getFinanceSummary(organizationId, projectId);
+        const summary = await getFinanceSummary(organizationId, 'ADMIN', projectId); // Assuming ADMIN for PDF generation
         const organizationName = await getOrganizationName(organizationId);
         const projectName = await getProjectName(projectId);
         const tableData = await getDetailedFinanceEntries(organizationId, projectId);
 
-        // 2. הגדרת הפונט העברי
         const fontPath = path.join(__dirname, '../fonts/almoni-neue-black-aaa.otf');
         if (!fs.existsSync(fontPath)) {
             console.error(`Error: Font file not found at ${fontPath}`);
             throw new Error('Font file is missing. Please place "almoni-neue-black-aaa.otf" in the src/fonts directory.');
         }
 
-        // 3. יצירת מסמך PDF חדש
         const doc = new PDFDocumentWithTables({
             size: 'A4',
             autoFirstPage: false,
@@ -479,8 +449,6 @@ const generateFinancePDF = async (organizationId, projectId) => {
 
             doc.addPage();
 
-            // 4. הוספת תוכן למסמך
-            // כותרות כלליות
             doc.fontSize(18).text(rtl('דוח כספים'), { align: 'right' });
             doc.moveDown();
             doc.fontSize(12).text(rtl(`תאריך: ${new Date().toLocaleDateString('he-IL')}`), { align: 'right' });
@@ -490,11 +458,9 @@ const generateFinancePDF = async (organizationId, projectId) => {
             }
             doc.moveDown(2);
 
-            // סיכום כספים
             doc.fontSize(14).text(rtl('סיכום כספים'), { align: 'right', underline: true });
             doc.moveDown(0.5);
 
-            // 💡 טבלת הסיכום החדשה והמתוקנת
             const summaryTable = {
                 headers: [
                     { label: rtl('פרט'), property: 'key', width: 150, align: 'right' },
@@ -508,7 +474,6 @@ const generateFinancePDF = async (organizationId, projectId) => {
                 ]
             };
             
-            // 💡 בדיקה חדשה: לוודא שהכותרות אינן ריקות
             const filteredSummaryHeaders = summaryTable.headers.filter(h => h && h.label);
             summaryTable.headers = filteredSummaryHeaders;
 
@@ -520,11 +485,9 @@ const generateFinancePDF = async (organizationId, projectId) => {
 
             doc.moveDown(2);
 
-            // פירוט רשומות
             doc.fontSize(14).text(rtl('פירוט רשומות'), { align: 'right', underline: true });
             doc.moveDown(0.5);
 
-            // 💡 טבלת הרשומות המתוקנת עם סדר כותרות הפוך
             const dataTable = {
                 headers: [
                     { label: rtl('תאריך'), property: 'date', width: 60, align: 'right', renderer: (value) => rtl(new Date(value).toLocaleDateString('he-IL') || '') },
@@ -539,7 +502,6 @@ const generateFinancePDF = async (organizationId, projectId) => {
                 datas: tableData
             };
 
-            // 💡 בדיקה חדשה: לוודא שהכותרות אינן ריקות
             const filteredDataHeaders = dataTable.headers.filter(h => h && h.label);
             dataTable.headers = filteredDataHeaders;
 
