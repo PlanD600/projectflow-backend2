@@ -25,7 +25,7 @@ const getAllProjects = async (organizationId, userId, userRole, { page = 1, limi
         };
 
         // 💡 שלב 2: הוספת לוגיקת סינון לפי תפקיד המשתמש.
-        if (userRole === 'TEAM_MANAGER' || userRole === 'EMPLOYEE') {
+        if (userRole === 'TEAM_LEADER' || userRole === 'EMPLOYEE') {
             // אם המשתמש הוא מנהל צוות או עובד, סנן את הפרויקטים שהוא משויך אליהם
             whereClause = {
                 ...whereClause,

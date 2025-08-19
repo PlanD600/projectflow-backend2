@@ -13,7 +13,7 @@ router.use(requireOrganizationId);
 // User Routes
 router.get(
   '/users',
-  authorizeRoles(['ADMIN', 'SUPER_ADMIN', 'TEAM_MANAGER', 'EMPLOYEE']),
+  authorizeRoles(['ADMIN', 'SUPER_ADMIN', 'TEAM_LEADER', 'EMPLOYEE']),
   userTeamController.getUsers
 );
 
@@ -56,7 +56,7 @@ router.put(
 // Team Routes (No changes here)
 router.get(
   '/teams',
-  authorizeRoles(['ADMIN', 'SUPER_ADMIN', 'TEAM_MANAGER', 'EMPLOYEE']),
+  authorizeRoles(['ADMIN', 'SUPER_ADMIN', 'TEAM_LEADER', 'EMPLOYEE']),
   userTeamController.getTeams
 );
 
