@@ -209,7 +209,7 @@ const createProject = async (organizationId, { title, description, teamLeads: te
 const updateProject = async (projectId, organizationId, updateData) => {
     const project = await prisma.project.findUnique({
         where: { id: projectId, organizationId },
-        include: { projectTeamLeads: true, monthlyBudgets: true, teams: true } // 💡 שינוי: הוספת teams
+        include: { projectTeamLeads: true, monthlyBudgets: true, teams: true }
     });
 
     if (!project) {
@@ -218,38 +218,68 @@ const updateProject = async (projectId, organizationId, updateData) => {
 
     const { teamLeads: newTeamLeadIds, monthlyBudgets: newMonthlyBudgets, teamIds: newTeamIds, ...dataToUpdate } = updateData;
 
-    // ... (עדכון ראשי צוותים)
+    // עדכון ראשי צוותים
     if (newTeamLeadIds !== undefined) {
-        // ... (לוגיקת עדכון ראשי צוותים קיימת)
+        // מנתק את כל ראשי הצוותים הקיימים
+        await prisma.projectTeamLead.deleteMany({
+            where: { projectId }
+        });
+
+        // יוצר קשרים חדשים לראשי צוותים
+        if (newTeamLeadIds.length > 0) {
+            await prisma.projectTeamLead.createMany({
+                data: newTeamLeadIds.map(userId => ({
+                    projectId,
+                    userId
+                }))
+            });
+        }
     }
 
-    // 💡 שינוי: עדכון קשרי הצוותים
+    // עדכון קשרי הצוותים
     if (newTeamIds !== undefined) {
         await prisma.$transaction([
             prisma.project.update({
                 where: { id: projectId },
                 data: {
-                    teams: { set: [] } // מנתק את כל הצוותים הקיימים
+                    teams: { set: [] }
                 }
             }),
             prisma.project.update({
                 where: { id: projectId },
                 data: {
                     teams: {
-                        connect: newTeamIds.map(id => ({ id })) // יוצר קשרים חדשים לצוותים המעודכנים
+                        connect: newTeamIds.map(id => ({ id }))
                     }
                 }
             })
         ]);
     }
-    
-    // ... (עדכון תקציבים)
 
+    // עדכון תקציבים חודשיים
+    if (newMonthlyBudgets !== undefined) {
+        // מנתק את כל התקציבים הקיימים
+        await prisma.monthlyBudget.deleteMany({
+            where: { projectId }
+        });
+
+        // יוצר תקציבים חדשים
+        if (newMonthlyBudgets.length > 0) {
+            await prisma.monthlyBudget.createMany({
+                data: newMonthlyBudgets.map(budget => ({
+                    ...budget,
+                    projectId,
+                    organizationId
+                }))
+            });
+        }
+    }
+
+    // עדכון הפרויקט עם הנתונים החדשים
     const updatedProject = await prisma.project.update({
         where: { id: projectId },
-        data: { isArchived },
+        data: dataToUpdate,
         include: {
-            // 💡 תיקון: טעינה ישירה של הנתונים הדרושים
             organization: {
                 select: { id: true, name: true }
             },
@@ -260,7 +290,6 @@ const updateProject = async (projectId, organizationId, updateData) => {
                     }
                 }
             },
-            // 💡 תיקון קריטי: הוספת טעינה של teams
             teams: {
                 include: {
                     teamLeads: {
@@ -276,7 +305,7 @@ const updateProject = async (projectId, organizationId, updateData) => {
         }
     });
 
-    // 3. עיבוד הנתונים למבנה נקי יותר
+    // עיבוד הנתונים למבנה נקי יותר
     const projectLeads = (updatedProject.projectTeamLeads || []).map(ptl => ptl.user);
     const associatedTeams = updatedProject.teams || [];
 
