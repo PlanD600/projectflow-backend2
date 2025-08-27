@@ -125,8 +125,7 @@ const createConversation = async (organizationId, creatorId, { type, participant
     ...newConversation,
     participants: newConversation.participants.map(p => p.user),
     participantIds: newConversation.participants.map(p => p.userId),
-    participants: undefined, // Remove intermediate table
-    unreadCount: 0 // Default for new conversation
+    unreadCount: 0
   };
 
   return formattedConversation;
