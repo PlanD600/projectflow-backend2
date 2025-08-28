@@ -12,5 +12,6 @@ router.use(requireOrganizationId);
 router.get('/', chatController.getConversations);
 router.post('/', chatController.createConversation);
 router.get('/:conversationId/messages', chatController.getMessages);
+router.delete('/:conversationId/messages', chatController.deleteMessages);
 
 module.exports = router;

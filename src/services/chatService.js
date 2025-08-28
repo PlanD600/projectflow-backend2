@@ -9,7 +9,6 @@ const prisma = new PrismaClient();
  * @returns {Promise<object[]>} List of conversations.
  */
 const getAllConversations = async (userId, organizationId) => {
-  // Find all conversations where the user is a participant AND the conversation belongs to the organization
   const conversations = await prisma.conversation.findMany({
     where: {
       organizationId: organizationId,
@@ -27,8 +26,8 @@ const getAllConversations = async (userId, organizationId) => {
           }
         }
       },
-      messages: { // Limit messages for conversation list preview
-        take: 1, // Only fetch the last message for a preview
+      messages: {
+        take: 1,
         orderBy: { createdAt: 'desc' },
         include: {
           sender: {
@@ -36,20 +35,19 @@ const getAllConversations = async (userId, organizationId) => {
           }
         }
       }
-      // TODO: Implement unreadCount logic here or in frontend based on 'read' status of messages
     },
     orderBy: {
-      updatedAt: 'desc' // Or based on last message timestamp
+      updatedAt: 'desc'
     }
   });
 
-    const formattedConversations = conversations.map(convo => {
+  const formattedConversations = conversations.map(convo => {
     const { participants, ...restOfConvo } = convo;
     return {
       ...restOfConvo,
       participants: participants.map(p => p.user),
       participantIds: participants.map(p => p.userId),
-      unreadCount: 0 
+      unreadCount: 0
     };
   });
 
@@ -63,71 +61,134 @@ const getAllConversations = async (userId, organizationId) => {
  * @param {'private' | 'group'} type - Type of conversation.
  * @param {string[]} participantIds - Array of user IDs to include in the conversation.
  * @param {string} [name] - Name for group chats.
- * @param {string} [avatarUrl] - Avatar URL for group chats.
- * @returns {Promise<object>} The newly created conversation.
+ * @returns {Promise<object>} The newly created or existing conversation.
  */
-const createConversation = async (organizationId, creatorId, { type, participantIds, name, avatarUrl }) => {
-  if (!['private', 'group'].includes(type)) {
-    throw new Error('Invalid conversation type. Must be "private" or "group".');
-  }
-
-  // Ensure creator is included in participantIds
-  if (!participantIds.includes(creatorId)) {
-    participantIds.push(creatorId);
-  }
-
-  // Validate all participantIds exist and belong to the organization
-  const existingMemberships = await prisma.membership.findMany({
-    where: {
-      organizationId: organizationId,
-      userId: { in: participantIds }
-    },
-    select: { userId: true }
-  });
-  if (existingMemberships.length !== participantIds.length) {
-    throw new Error('One or more specified participants are invalid or not members of this organization.');
-  }
-
-  if (type === 'private' && participantIds.length !== 2) {
-      throw new Error('Private conversations must have exactly two participants.');
-  }
-  if (type === 'group' && participantIds.length < 2) {
-      throw new Error('Group conversations must have at least two participants.');
-  }
-
-
-  const newConversation = await prisma.conversation.create({
-    data: {
-      organizationId: organizationId,
-      type: type,
-      name: name,
-      avatarUrl: avatarUrl,
-      participants: {
-        create: participantIds.map(userId => ({ userId }))
-      }
-    },
-    include: {
-      participants: {
-        include: {
-          user: {
-            select: { id: true, fullName: true, profilePictureUrl: true }
-          }
-        }
-      },
-      messages: { // Empty messages array for new convo
-          include: { sender: true }
-      }
+const createConversation = async (organizationId, creatorId, { type, participantIds, name }) => {
+    if (!['private', 'group'].includes(type)) {
+        throw new Error('Invalid conversation type. Must be "private" or "group".');
     }
+
+    if (!participantIds.includes(creatorId)) {
+        participantIds.push(creatorId);
+    }
+    
+    const uniqueParticipantIds = [...new Set(participantIds)];
+
+    const existingMemberships = await prisma.membership.findMany({
+        where: {
+            organizationId: organizationId,
+            userId: { in: uniqueParticipantIds }
+        },
+        select: { userId: true }
+    });
+    if (existingMemberships.length !== uniqueParticipantIds.length) {
+        throw new Error('One or more specified participants are invalid or not members of this organization.');
+    }
+
+    if (type === 'private') {
+        if (uniqueParticipantIds.length !== 2) {
+            throw new Error('Private conversations must have exactly two participants.');
+        }
+
+        const existingConversation = await prisma.conversation.findFirst({
+            where: {
+                organizationId,
+                type: 'private',
+                AND: [
+                    { participants: { some: { userId: uniqueParticipantIds[0] } } },
+                    { participants: { some: { userId: uniqueParticipantIds[1] } } }
+                ],
+                participants: {
+                    every: { userId: { in: uniqueParticipantIds } }
+                }
+            },
+            include: {
+                participants: { include: { user: { select: { id: true, fullName: true, profilePictureUrl: true } } } },
+                messages: { take: 1, orderBy: { createdAt: 'desc' }, include: { sender: true } }
+            }
+        });
+
+        if (existingConversation) {
+            console.log("Found existing private conversation, returning it.");
+            const error = new Error('Conversation already exists');
+            error.conversation = {
+                ...existingConversation,
+                participants: existingConversation.participants.map(p => p.user),
+                participantIds: existingConversation.participants.map(p => p.userId),
+                unreadCount: 0
+            };
+            throw error;
+        }
+    } else if (type === 'group' && uniqueParticipantIds.length < 2) {
+        throw new Error('Group conversations must have at least two participants.');
+    }
+
+    const newConversation = await prisma.conversation.create({
+        data: {
+            organizationId: organizationId,
+            type: type,
+            name: name,
+            participants: {
+                create: uniqueParticipantIds.map(userId => ({ userId }))
+            }
+        },
+        include: {
+            participants: {
+                include: {
+                    user: {
+                        select: { id: true, fullName: true, profilePictureUrl: true }
+                    }
+                }
+            },
+            messages: {
+                include: { sender: true }
+            }
+        }
+    });
+
+    const { participants, ...restOfConvo } = newConversation;
+    const formattedConversation = {
+        ...restOfConvo,
+        participants: participants.map(p => p.user),
+        participantIds: participants.map(p => p.userId),
+        unreadCount: 0
+    };
+
+    return formattedConversation;
+};
+
+
+/**
+ * Deletes all messages from a specific conversation.
+ * @param {string} conversationId - The ID of the conversation.
+ * @param {string} userId - The ID of the user requesting the deletion (for permission checks).
+ * @param {string} organizationId - The ID of the current organization.
+ * @returns {Promise<void>}
+ */
+const deleteConversationMessages = async (conversationId, userId, organizationId) => {
+  // First, verify the user is a participant in the conversation to authorize the deletion
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      organizationId: organizationId,
+      participants: {
+        some: {
+          userId: userId,
+        },
+      },
+    },
   });
 
-  const formattedConversation = {
-    ...newConversation,
-    participants: newConversation.participants.map(p => p.user),
-    participantIds: newConversation.participants.map(p => p.userId),
-    unreadCount: 0
-  };
+  if (!conversation) {
+    throw new Error('Conversation not found or you do not have permission to modify it.');
+  }
 
-  return formattedConversation;
+  // Delete all messages associated with the conversation
+  await prisma.message.deleteMany({
+    where: {
+      conversationId: conversationId,
+    },
+  });
 };
 
 /**
@@ -143,12 +204,11 @@ const createConversation = async (organizationId, creatorId, { type, participant
 const getMessagesForConversation = async (conversationId, userId, organizationId, { page = 1, limit = 50 }) => {
   const offset = (page - 1) * limit;
 
-  // 1. Verify conversation exists and belongs to the organization
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId, organizationId: organizationId },
     include: {
       participants: {
-        where: { userId: userId } // Check if current user is a participant
+        where: { userId: userId }
       }
     }
   });
@@ -157,7 +217,6 @@ const getMessagesForConversation = async (conversationId, userId, organizationId
     throw new Error('Conversation not found or does not belong to your organization.');
   }
 
-  // 2. Verify current user is a participant of this conversation
   if (conversation.participants.length === 0) {
     throw new Error('You are not a participant of this conversation.');
   }
@@ -166,7 +225,7 @@ const getMessagesForConversation = async (conversationId, userId, organizationId
     where: { conversationId },
     skip: offset,
     take: limit,
-    orderBy: { createdAt: 'desc' }, // Messages usually ordered descending (latest first)
+    orderBy: { createdAt: 'desc' },
     include: {
       sender: {
         select: { id: true, fullName: true, profilePictureUrl: true }
@@ -181,8 +240,8 @@ const getMessagesForConversation = async (conversationId, userId, organizationId
   const totalPages = Math.ceil(totalMessages / limit);
 
   return {
-    messages: messages, // Return messages directly as per spec
-    totalItems: totalMessages, // Adding totalItems for consistency
+    messages: messages,
+    totalItems: totalMessages,
     totalPages,
     currentPage: page,
   };
@@ -192,4 +251,5 @@ module.exports = {
   getAllConversations,
   createConversation,
   getMessagesForConversation,
+  deleteConversationMessages,
 };
