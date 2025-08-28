@@ -43,16 +43,15 @@ const getAllConversations = async (userId, organizationId) => {
     }
   });
 
-  const formattedConversations = conversations.map(convo => ({
-    ...convo,
-    participants: convo.participants.map(p => p.user),
-    participantIds: convo.participants.map(p => p.userId), // Add participantIds for frontend convenience
-    // Remove intermediate table
-    participants: undefined,
-    // Add logic to calculate unreadCount if needed (server-side, per user)
-    // For now, default to 0 or leave undefined as per spec model.
-    unreadCount: 0 // Placeholder
-  }));
+    const formattedConversations = conversations.map(convo => {
+    const { participants, ...restOfConvo } = convo;
+    return {
+      ...restOfConvo,
+      participants: participants.map(p => p.user),
+      participantIds: participants.map(p => p.userId),
+      unreadCount: 0 
+    };
+  });
 
   return formattedConversations;
 };
