@@ -216,19 +216,12 @@ const updateProject = async (projectId, organizationId, updateData) => {
         throw new Error('Project not found in this organization.');
     }
 
-    // 💡 תיקון חדש: נטפל בשדה isArchived בצורה ישירה יותר
+    // 💡 תיקון: הפרדה של שדות מיוחדים מהנתונים הרגילים לעדכון
     const { teamLeads: newTeamLeadIds, monthlyBudgets: newMonthlyBudgets, teamIds: newTeamIds, ...dataToUpdate } = updateData;
-    
-    // 💡 תיקון: וודא שהשדה isArchived נכלל ב-dataToUpdate
-    if (updateData.hasOwnProperty('isArchived')) {
-        dataToUpdate.isArchived = updateData.isArchived;
-    }
     
     // 💡 לוג לבדיקה: הדפסת הנתונים שנשלחים לעדכון
     console.log('projectService.updateProject - updateData:', updateData);
-    console.log('projectService.updateProject - isArchived from updateData:', isArchived);
     console.log('projectService.updateProject - dataToUpdate:', dataToUpdate);
-    console.log('projectService.updateProject - dataToUpdate.isArchived:', dataToUpdate.isArchived);
 
     // עדכון ראשי צוותים
     if (newTeamLeadIds !== undefined) {
