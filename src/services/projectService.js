@@ -235,8 +235,7 @@ const updateProject = async (projectId, organizationId, updateData) => {
             await prisma.projectTeamLead.createMany({
                 data: newTeamLeadIds.map(userId => ({
                     projectId,
-                    userId,
-                    organizationId
+                    userId
                 }))
             });
         }
