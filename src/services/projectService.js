@@ -216,14 +216,40 @@ const updateProject = async (projectId, organizationId, updateData) => {
         throw new Error('Project not found in this organization.');
     }
 
+    // 💡 תיקון חדש: נטפל בשדה isArchived בצורה ישירה יותר
     const { teamLeads: newTeamLeadIds, monthlyBudgets: newMonthlyBudgets, teamIds: newTeamIds, ...dataToUpdate } = updateData;
+    
+    // 💡 תיקון: וודא שהשדה isArchived נכלל ב-dataToUpdate
+    if (updateData.hasOwnProperty('isArchived')) {
+        dataToUpdate.isArchived = updateData.isArchived;
+    }
+    
+    // 💡 לוג לבדיקה: הדפסת הנתונים שנשלחים לעדכון
+    console.log('projectService.updateProject - updateData:', updateData);
+    console.log('projectService.updateProject - isArchived from updateData:', isArchived);
+    console.log('projectService.updateProject - dataToUpdate:', dataToUpdate);
+    console.log('projectService.updateProject - dataToUpdate.isArchived:', dataToUpdate.isArchived);
 
-    // ... (עדכון ראשי צוותים)
+    // עדכון ראשי צוותים
     if (newTeamLeadIds !== undefined) {
-        // ... (לוגיקת עדכון ראשי צוותים קיימת)
+        // מנתק את כל הקשרים הקיימים
+        await prisma.projectTeamLead.deleteMany({
+            where: { projectId }
+        });
+
+        // יוצר קשרים חדשים
+        if (newTeamLeadIds.length > 0) {
+            await prisma.projectTeamLead.createMany({
+                data: newTeamLeadIds.map(userId => ({
+                    projectId,
+                    userId,
+                    organizationId
+                }))
+            });
+        }
     }
 
-    // 💡 שינוי: עדכון קשרי הצוותים
+    // עדכון קשרי הצוותים
     if (newTeamIds !== undefined) {
         await prisma.$transaction([
             prisma.project.update({
@@ -243,38 +269,64 @@ const updateProject = async (projectId, organizationId, updateData) => {
         ]);
     }
     
-    // ... (עדכון תקציבים)
+    // עדכון תקציבים
+    if (newMonthlyBudgets !== undefined) {
+        // מנתק את כל התקציבים הקיימים
+        await prisma.monthlyBudget.deleteMany({
+            where: { projectId }
+        });
 
-    const updatedProject = await prisma.project.update({
-        where: { id: projectId },
-        data: { isArchived },
-        include: {
-            // 💡 תיקון: טעינה ישירה של הנתונים הדרושים
-            organization: {
-                select: { id: true, name: true }
-            },
-            projectTeamLeads: {
-                include: {
-                    user: {
-                        select: { id: true, fullName: true, email: true, profilePictureUrl: true, jobTitle: true }
-                    }
-                }
-            },
-            // 💡 תיקון קריטי: הוספת טעינה של teams
-            teams: {
-                include: {
-                    teamLeads: {
-                        include: { user: true }
-                    },
-                    teamMembers: {
-                        include: { user: true }
-                    }
-                }
-            },
-            tasks: true,
-            monthlyBudgets: true
+        // יוצר תקציבים חדשים
+        if (newMonthlyBudgets.length > 0) {
+            await prisma.monthlyBudget.createMany({
+                data: newMonthlyBudgets.map(budget => ({
+                    ...budget,
+                    projectId,
+                    organizationId
+                }))
+            });
         }
-    });
+    }
+
+    let updatedProject;
+    try {
+        console.log('About to call prisma.project.update with dataToUpdate:', JSON.stringify(dataToUpdate));
+        updatedProject = await prisma.project.update({
+            where: { id: projectId },
+            data: dataToUpdate,
+            include: {
+                // 💡 תיקון: טעינה ישירה של הנתונים הדרושים
+                organization: {
+                    select: { id: true, name: true }
+                },
+                projectTeamLeads: {
+                    include: {
+                        user: {
+                            select: { id: true, fullName: true, email: true, profilePictureUrl: true, jobTitle: true }
+                        }
+                    }
+                },
+                // 💡 תיקון קריטי: הוספת טעינה של teams
+                teams: {
+                    include: {
+                        teamLeads: {
+                            include: { user: true }
+                        },
+                        teamMembers: {
+                            include: { user: true }
+                        }
+                    }
+                },
+                tasks: true,
+                monthlyBudgets: true
+            }
+        });
+        console.log('prisma.project.update completed successfully');
+    } catch (prismaError) {
+        console.error('Error in prisma.project.update:', prismaError);
+        console.error('dataToUpdate that caused the error:', JSON.stringify(dataToUpdate));
+        throw new Error(`Database update failed: ${prismaError.message}`);
+    }
 
     // 3. עיבוד הנתונים למבנה נקי יותר
     const projectLeads = (updatedProject.projectTeamLeads || []).map(ptl => ptl.user);
