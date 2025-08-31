@@ -5,7 +5,7 @@ const sendErrorResponse = (res, statusCode, message, errors = null) => {
   res.status(statusCode).json({ message, errors });
 };
 
-// הרשמת משתמש חדש עם אימייל וסיסמה
+// הרשמת משתמש חדש עם אימייל וסיסמה1
 const register = async (req, res) => {
   try {
     const { fullName, email, password, organizationName } = req.body;
