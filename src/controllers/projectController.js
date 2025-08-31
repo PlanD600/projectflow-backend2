@@ -102,14 +102,22 @@ const updateProject = async (req, res) => {
         const organizationId = req.organizationId;
         const updateData = req.body;
 
-        // 💡 תיקון: עדכון המערך כך שיכלול את השדות החדשים
-        const allowedUpdates = ['title', 'description', 'teamLeads', 'teamIds', 'startDate', 'endDate', 'status', 'isArchived', 'monthlyBudgets'];
+        // 💡 לוג לבדיקה: הדפסת הנתונים שמגיעים מהקליינט
+        console.log('projectController.updateProject - req.body:', req.body);
+        console.log('projectController.updateProject - isArchived in req.body:', req.body.isArchived);
+
+        // 💡 תיקון: עדכון המערך כך שיכלול את השדות החדשים, אך לא את isArchived (זה מטופל ב-archiveProject)
+        const allowedUpdates = ['title', 'description', 'teamLeads', 'teamIds', 'startDate', 'endDate', 'status', 'monthlyBudgets'];
         const filteredUpdateData = Object.keys(updateData)
             .filter(key => allowedUpdates.includes(key))
             .reduce((obj, key) => {
                 obj[key] = updateData[key];
                 return obj;
             }, {});
+
+        // 💡 לוג לבדיקה: הדפסת הנתונים המסוננים
+        console.log('projectController.updateProject - filteredUpdateData:', filteredUpdateData);
+        console.log('projectController.updateProject - isArchived in filteredUpdateData:', filteredUpdateData.isArchived);
 
         if (Object.keys(filteredUpdateData).length === 0) {
             return sendErrorResponse(res, 400, 'No valid fields provided for update.');

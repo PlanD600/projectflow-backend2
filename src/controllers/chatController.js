@@ -1,7 +1,8 @@
 // src/controllers/chatController.js
 const chatService = require('../services/chatService');
 const { sendErrorResponse } = require('../utils/errorUtils');
-//11
+
+//21
 const getConversations = async (req, res) => {
   try {
     const userId = req.user.userId;
