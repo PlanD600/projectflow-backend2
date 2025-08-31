@@ -106,8 +106,8 @@ const updateProject = async (req, res) => {
         console.log('projectController.updateProject - req.body:', req.body);
         console.log('projectController.updateProject - isArchived in req.body:', req.body.isArchived);
 
-        // 💡 תיקון: עדכון המערך כך שיכלול את השדות החדשים
-        const allowedUpdates = ['title', 'description', 'teamLeads', 'teamIds', 'startDate', 'endDate', 'status', 'isArchived', 'monthlyBudgets'];
+        // 💡 תיקון: עדכון המערך כך שיכלול את השדות החדשים, אך לא את isArchived (זה מטופל ב-archiveProject)
+        const allowedUpdates = ['title', 'description', 'teamLeads', 'teamIds', 'startDate', 'endDate', 'status', 'monthlyBudgets'];
         const filteredUpdateData = Object.keys(updateData)
             .filter(key => allowedUpdates.includes(key))
             .reduce((obj, key) => {
